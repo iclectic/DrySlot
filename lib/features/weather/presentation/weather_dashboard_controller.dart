@@ -8,6 +8,7 @@ import '../domain/weather_advisor.dart';
 import '../domain/weather_models.dart';
 
 const _selectedLocationKey = 'dry_slots.selected_location.v1';
+const _commuteWindowsKey = 'dry_slots.commute_windows.v1';
 
 class WeatherDashboardController extends ChangeNotifier {
   WeatherDashboardController({
@@ -23,6 +24,7 @@ class WeatherDashboardController extends ChangeNotifier {
   final WeatherAdvisor _advisor;
 
   WeatherLocation _selectedLocation = WeatherLocation.london;
+  List<SavedCommuteWindow> _commuteWindows = SavedCommuteWindow.defaults;
   WeatherReport? _report;
   WeatherGuidance? _guidance;
   String? _errorMessage;
@@ -31,6 +33,8 @@ class WeatherDashboardController extends ChangeNotifier {
   int _requestSerial = 0;
 
   WeatherLocation get selectedLocation => _selectedLocation;
+
+  List<SavedCommuteWindow> get commuteWindows => List.unmodifiable(_commuteWindows);
 
   WeatherReport? get report => _report;
 
@@ -46,7 +50,20 @@ class WeatherDashboardController extends ChangeNotifier {
 
   Future<void> initialize() async {
     _restoreLocation();
+    _restoreCommuteWindows();
     await refresh();
+  }
+
+  Future<void> saveCommuteWindows(List<SavedCommuteWindow> windows) async {
+    _commuteWindows = windows.isEmpty ? SavedCommuteWindow.defaults : windows;
+    await _preferences.setString(
+      _commuteWindowsKey,
+      jsonEncode(
+        _commuteWindows.map((window) => window.toJson()).toList(growable: false),
+      ),
+    );
+    _rebuildGuidance();
+    notifyListeners();
   }
 
   Future<void> refresh({WeatherLocation? location}) async {
@@ -65,7 +82,10 @@ class WeatherDashboardController extends ChangeNotifier {
 
     try {
       final weather = await _repository.fetchWeather(_selectedLocation);
-      final guidance = _advisor.build(weather);
+      final guidance = _advisor.build(
+        weather,
+        commuteWindows: _commuteWindows,
+      );
       if (requestId != _requestSerial) {
         return;
       }
@@ -102,5 +122,34 @@ class WeatherDashboardController extends ChangeNotifier {
     } catch (_) {
       _selectedLocation = WeatherLocation.london;
     }
+  }
+
+  void _restoreCommuteWindows() {
+    final raw = _preferences.getString(_commuteWindowsKey);
+    if (raw == null || raw.isEmpty) {
+      _commuteWindows = SavedCommuteWindow.defaults;
+      return;
+    }
+
+    try {
+      final json = jsonDecode(raw) as List<dynamic>;
+      final windows = json
+          .whereType<Map<String, dynamic>>()
+          .map(SavedCommuteWindow.fromJson)
+          .toList(growable: false);
+      _commuteWindows = windows.isEmpty ? SavedCommuteWindow.defaults : windows;
+    } catch (_) {
+      _commuteWindows = SavedCommuteWindow.defaults;
+    }
+  }
+
+  void _rebuildGuidance() {
+    if (_report == null) {
+      return;
+    }
+    _guidance = _advisor.build(
+      _report!,
+      commuteWindows: _commuteWindows,
+    );
   }
 }

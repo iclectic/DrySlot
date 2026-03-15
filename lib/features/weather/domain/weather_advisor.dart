@@ -8,15 +8,23 @@ import 'weather_models.dart';
 class WeatherAdvisor {
   const WeatherAdvisor();
 
-  WeatherGuidance build(WeatherReport report) {
+  WeatherGuidance build(
+    WeatherReport report, {
+    required List<SavedCommuteWindow> commuteWindows,
+  }) {
     final nextHour = _buildNextHourInsight(report);
     final dryWindow = _findBestDryWindow(report.hourly);
-    final commute = _buildCommute(report.hourly, report.fetchedAt);
+    final commute = _buildCommute(report.hourly, report.fetchedAt, commuteWindows);
     final risks = _buildRisks(report);
     final wearTips = _buildWearTips(report, nextHour);
     final activities = _buildActivities(report, dryWindow, nextHour);
     final headline = _buildHeadline(report, nextHour, dryWindow, risks);
-    final simpleSummary = _buildSimpleSummary(report, nextHour, dryWindow, risks);
+    final simpleSummary = _buildSimpleSummary(
+      report,
+      nextHour,
+      dryWindow,
+      wearTips,
+    );
 
     return WeatherGuidance(
       headline: headline,
@@ -72,6 +80,7 @@ class WeatherAdvisor {
         departureAdvice: tone == AdviceTone.wait ? 'Wait it out if you can' : 'Go only with a waterproof',
         tone: tone,
         maxPrecipitationMm: maxPrecipitation,
+        minutesUntilRain: 0,
       );
     }
 
@@ -85,6 +94,7 @@ class WeatherAdvisor {
         departureAdvice: 'Go soon if you are heading out',
         tone: AdviceTone.watch,
         maxPrecipitationMm: maxPrecipitation,
+        minutesUntilRain: minutesUntilRain,
       );
     }
 
@@ -94,13 +104,15 @@ class WeatherAdvisor {
       departureAdvice: 'A good moment to leave now',
       tone: AdviceTone.go,
       maxPrecipitationMm: maxPrecipitation,
+      minutesUntilRain: minutesUntilRain,
     );
   }
 
   DryWindowInsight _findBestDryWindow(List<HourlyForecast> hourly) {
-    final candidates = hourly.take(12).toList(growable: false);
+    final candidates = hourly.take(14).toList(growable: false);
     if (candidates.isEmpty) {
       return const DryWindowInsight(
+        headline: 'Dry window unavailable',
         isAvailable: false,
         start: null,
         end: null,
@@ -111,15 +123,17 @@ class WeatherAdvisor {
       );
     }
 
+    final afternoon = candidates
+        .where((slot) => slot.time.hour >= 12 && slot.time.hour < 18)
+        .toList(growable: false);
+    final afternoonLooksWet = afternoon.length >= 4 &&
+        afternoon.every((slot) => !_isDryEnough(slot));
+
     List<HourlyForecast> currentRun = <HourlyForecast>[];
     List<HourlyForecast> bestRun = <HourlyForecast>[];
 
     for (final slot in candidates) {
-      final dryEnough = slot.precipitationProbability < 35 &&
-          slot.precipitationMm < 0.15 &&
-          slot.windSpeedKph < 32;
-
-      if (dryEnough) {
+      if (_isDryEnough(slot)) {
         currentRun.add(slot);
         if (currentRun.length > bestRun.length) {
           bestRun = List<HourlyForecast>.from(currentRun);
@@ -130,15 +144,31 @@ class WeatherAdvisor {
     }
 
     if (bestRun.isEmpty) {
+      if (afternoonLooksWet) {
+        return const DryWindowInsight(
+          headline: 'Rain likely all afternoon',
+          isAvailable: false,
+          start: null,
+          end: null,
+          duration: Duration.zero,
+          note: 'The middle of the day looks unsettled, so outdoor plans stay awkward.',
+          confidenceLabel: 'Low confidence',
+          tone: AdviceTone.wait,
+        );
+      }
+
       final leastBad = candidates.reduce(
         (best, slot) => _slotPenalty(slot) < _slotPenalty(best) ? slot : best,
       );
+      final start = leastBad.time;
+      final end = leastBad.time.add(const Duration(hours: 1));
       return DryWindowInsight(
+        headline: 'Short dry slot: ${_clock(start)} to ${_clock(end)}',
         isAvailable: true,
-        start: leastBad.time,
-        end: leastBad.time.add(const Duration(hours: 1)),
+        start: start,
+        end: end,
         duration: const Duration(hours: 1),
-        note: 'Conditions stay mixed, so use the least-wet hour you can find.',
+        note: 'Only a brief usable gap stands out, so keep plans tight and practical.',
         confidenceLabel: 'Low confidence',
         tone: AdviceTone.watch,
       );
@@ -153,13 +183,15 @@ class WeatherAdvisor {
         ) /
         bestRun.length;
     final confidence = averageProbability < 18 ? 'High confidence' : 'Reasonable confidence';
+    final isShortWindow = duration.inMinutes <= 75;
     final note = duration.inHours >= 3
-        ? 'This is your best block for walks, errands, or getting washing out.'
+        ? 'This is your clearest part of the day for errands, walks, or outdoor jobs.'
         : duration.inHours >= 2
-            ? 'A practical slot for the school run, errands, or a walk.'
+            ? 'A practical block for the school run, errands, or a walk.'
             : 'A short but usable gap if you keep things moving.';
 
     return DryWindowInsight(
+      headline: '${isShortWindow ? 'Short' : 'Best'} dry slot: ${_clock(start)} to ${_clock(end)}',
       isAvailable: true,
       start: start,
       end: end,
@@ -170,25 +202,50 @@ class WeatherAdvisor {
     );
   }
 
-  CommuteOverview _buildCommute(List<HourlyForecast> hourly, DateTime now) {
+  CommuteOverview _buildCommute(
+    List<HourlyForecast> hourly,
+    DateTime now,
+    List<SavedCommuteWindow> commuteWindows,
+  ) {
+    final templates = commuteWindows.isEmpty ? SavedCommuteWindow.defaults : commuteWindows;
+    final windows = templates
+        .map((template) => _scoreWindow(hourly, now, template))
+        .toList(growable: false);
+    final roughCount = windows.where((window) => window.tone == AdviceTone.wait).length;
+    final helpfulCount = windows.where((window) => window.tone == AdviceTone.go).length;
+
+    final summary = roughCount > 0
+        ? '$roughCount saved ${roughCount == 1 ? 'journey looks' : 'journeys look'} rough, so time them carefully.'
+        : helpfulCount == windows.length
+            ? 'Your saved journeys look manageable today.'
+            : 'A mixed picture across your saved journeys.';
+
     return CommuteOverview(
-      morning: _scoreWindow(hourly, _nextWindow(now, 7, 9), 'Morning'),
-      evening: _scoreWindow(hourly, _nextWindow(now, 16, 18), 'Evening'),
+      windows: windows,
+      summary: summary,
     );
   }
 
-  CommuteLeg _scoreWindow(List<HourlyForecast> hourly, ({DateTime start, DateTime end}) window, String label) {
+  CommuteLeg _scoreWindow(
+    List<HourlyForecast> hourly,
+    DateTime now,
+    SavedCommuteWindow template,
+  ) {
+    final start = _nextOccurrence(now, template.startMinutes, template.endMinutes);
+    final end = _endForOccurrence(start, template.startMinutes, template.endMinutes);
     final slots = hourly
-        .where((slot) => !slot.time.isBefore(window.start) && slot.time.isBefore(window.end))
+        .where((slot) => !slot.time.isBefore(start) && slot.time.isBefore(end))
         .toList(growable: false);
 
     if (slots.isEmpty) {
       return CommuteLeg(
-        label: label,
-        start: window.start,
-        end: window.end,
+        id: template.id,
+        label: template.label,
+        start: start,
+        end: end,
         tone: AdviceTone.watch,
-        detail: 'No commute forecast available yet.',
+        detail: 'No forecast is available for this saved time window yet.',
+        summary: 'Forecast unavailable',
         score: 50,
       );
     }
@@ -196,32 +253,43 @@ class WeatherAdvisor {
     final avgRainChance = slots.fold<int>(0, (sum, slot) => sum + slot.precipitationProbability) / slots.length;
     final maxRain = slots.fold<double>(0, (value, slot) => max(value, slot.precipitationMm));
     final maxWind = slots.fold<double>(0, (value, slot) => max(value, slot.windSpeedKph));
-    final minVisibility = slots.fold<double>(double.infinity, (value, slot) => min(value, slot.visibilityMeters));
+    final minVisibility = slots.fold<double>(
+      double.infinity,
+      (value, slot) => min(value, slot.visibilityMeters),
+    );
 
     final rainPenalty = avgRainChance * 0.35 + maxRain * 28;
     final windPenalty = max(0, maxWind - 18) * 1.6;
     final visibilityPenalty = minVisibility < 2500 ? 18 : minVisibility < 6000 ? 9 : 0;
-    final rawScore = (100 - rainPenalty - windPenalty - visibilityPenalty).round().clamp(15, 98);
+    final rawScore = (100 - rainPenalty - windPenalty - visibilityPenalty)
+        .round()
+        .clamp(15, 98);
 
     AdviceTone tone;
+    String summary;
     String detail;
     if (rawScore >= 75) {
       tone = AdviceTone.go;
-      detail = 'Mostly smooth with manageable rain risk.';
+      summary = 'Mostly smooth';
+      detail = 'Mostly dry with manageable wind and visibility.';
     } else if (rawScore >= 55) {
       tone = AdviceTone.watch;
-      detail = 'Usable, but expect some wet or breezy patches.';
+      summary = 'Changeable';
+      detail = 'Usable, but expect some wet, breezy, or murky patches.';
     } else {
       tone = AdviceTone.wait;
-      detail = 'Likely to feel rough with rain, wind, or poor visibility.';
+      summary = 'Rough going';
+      detail = 'Rain, wind, or poor visibility could make this window awkward.';
     }
 
     return CommuteLeg(
-      label: label,
-      start: window.start,
-      end: window.end,
+      id: template.id,
+      label: template.label,
+      start: start,
+      end: end,
       tone: tone,
       detail: detail,
+      summary: summary,
       score: rawScore,
     );
   }
@@ -296,8 +364,8 @@ class WeatherAdvisor {
       ));
     } else if (report.current.apparentTemperatureC <= 13) {
       tips.add(const WearTip(
-        title: 'Light extra layer',
-        detail: 'A jumper or overshirt should be enough.',
+        title: 'Light jacket',
+        detail: 'A light layer should keep the edge off.',
         icon: Icons.checkroom_rounded,
       ));
     }
@@ -351,7 +419,9 @@ class WeatherAdvisor {
         detail: nextHour.tone == AdviceTone.wait
             ? 'Give yourself extra buffer and pack waterproofs.'
             : 'Looks manageable if you head out on time.',
-        suitability: nextHour.tone == AdviceTone.wait ? ActivitySuitability.okay : ActivitySuitability.great,
+        suitability: nextHour.tone == AdviceTone.wait
+            ? ActivitySuitability.okay
+            : ActivitySuitability.great,
         icon: Icons.family_restroom_rounded,
       ),
       ActivityRecommendation(
@@ -371,7 +441,9 @@ class WeatherAdvisor {
         detail: shortWindowRain < 0.4
             ? 'Low enough rain risk for a practical trip.'
             : 'Still doable, but try to stack jobs into the drier period.',
-        suitability: shortWindowRain < 0.4 ? ActivitySuitability.great : ActivitySuitability.okay,
+        suitability: shortWindowRain < 0.4
+            ? ActivitySuitability.great
+            : ActivitySuitability.okay,
         icon: Icons.shopping_bag_rounded,
       ),
       ActivityRecommendation(
@@ -473,34 +545,97 @@ class WeatherAdvisor {
     WeatherReport report,
     NextHourInsight nextHour,
     DryWindowInsight dryWindow,
-    List<RiskNote> risks,
+    List<WearTip> wearTips,
   ) {
-    final descriptor = describeWeatherCode(
-      report.current.weatherCode,
-      isDay: report.current.isDay,
-    );
-    final riskLead = risks.first.level == RiskLevel.calm ? 'No major risks stand out.' : '${risks.first.title} could matter.';
-    final dryLead = dryWindow.isAvailable && dryWindow.start != null && dryWindow.end != null
-        ? 'Best dry window: ${_compactTime(dryWindow.start!)} to ${_compactTime(dryWindow.end!)}.'
-        : 'Dry windows look patchy today.';
-    return '${descriptor.summary}. ${nextHour.detail} $dryLead $riskLead';
+    final phrases = <String>[];
+    final wearPhrase = _wearPhrase(wearTips);
+    final breezyLater = report.today.maxWindKph >= 28;
+    final coldLater = report.today.minTempC <= 6 || report.current.apparentTemperatureC <= 8;
+
+    if ((nextHour.minutesUntilRain ?? 100) <= 20 && dryWindow.start != null) {
+      phrases.add(
+        'Rain expected within ${nextHour.minutesUntilRain} minutes. Best to leave after ${_clock(dryWindow.start!)}.',
+      );
+    } else if (dryWindow.isAvailable &&
+        dryWindow.start != null &&
+        dryWindow.end != null &&
+        dryWindow.duration.inHours >= 2) {
+      final segment = _timeBandPhrase(dryWindow.start!, dryWindow.end!);
+      final breezePart = breezyLater ? ', breezy later,' : ',';
+      phrases.add('Dry most of the $segment$breezePart $wearPhrase.');
+    } else if (coldLater && breezyLater) {
+      phrases.add('Cold and windy this evening. Wrap up if heading out.');
+    } else {
+      final descriptor = describeWeatherCode(
+        report.current.weatherCode,
+        isDay: report.current.isDay,
+      );
+      phrases.add('${descriptor.summary}. $wearPhrase.');
+    }
+
+    return phrases.join(' ').replaceAll('..', '.');
   }
 
-  ({DateTime start, DateTime end}) _nextWindow(DateTime now, int startHour, int endHour) {
-    final todayStart = DateTime(now.year, now.month, now.day, startHour);
-    final todayEnd = DateTime(now.year, now.month, now.day, endHour);
-    if (now.isBefore(todayEnd)) {
-      return (start: todayStart, end: todayEnd);
+  bool _isDryEnough(HourlyForecast slot) {
+    return slot.precipitationProbability < 35 &&
+        slot.precipitationMm < 0.15 &&
+        slot.windSpeedKph < 32;
+  }
+
+  DateTime _nextOccurrence(DateTime now, int startMinutes, int endMinutes) {
+    final midnight = DateTime(now.year, now.month, now.day);
+    var start = midnight.add(Duration(minutes: startMinutes));
+    final end = _endForOccurrence(start, startMinutes, endMinutes);
+    if (!now.isBefore(end)) {
+      start = start.add(const Duration(days: 1));
     }
-    final tomorrowStart = todayStart.add(const Duration(days: 1));
-    return (start: tomorrowStart, end: tomorrowStart.add(Duration(hours: endHour - startHour)));
+    return start;
+  }
+
+  DateTime _endForOccurrence(DateTime start, int startMinutes, int endMinutes) {
+    final minutesDelta = endMinutes >= startMinutes
+        ? endMinutes - startMinutes
+        : 24 * 60 - startMinutes + endMinutes;
+    return start.add(Duration(minutes: minutesDelta));
+  }
+
+  String _wearPhrase(List<WearTip> wearTips) {
+    final first = wearTips.first.title.toLowerCase();
+    if (first.contains('waterproof')) {
+      return 'waterproof recommended';
+    }
+    if (first.contains('light jacket')) {
+      return 'light jacket recommended';
+    }
+    if (first.contains('warm')) {
+      return 'warm layers recommended';
+    }
+    if (first.contains('windproof')) {
+      return 'windproof layer recommended';
+    }
+    return 'normal layers should be fine';
+  }
+
+  String _timeBandPhrase(DateTime start, DateTime end) {
+    if (start.hour >= 12 && end.hour <= 18) {
+      return 'afternoon';
+    }
+    if (start.hour < 12 && end.hour <= 13) {
+      return 'morning';
+    }
+    if (start.hour >= 17) {
+      return 'evening';
+    }
+    return 'day';
   }
 
   double _slotPenalty(HourlyForecast slot) {
-    return slot.precipitationProbability + slot.precipitationMm * 40 + max(0, slot.windSpeedKph - 22);
+    return slot.precipitationProbability +
+        slot.precipitationMm * 40 +
+        max(0, slot.windSpeedKph - 22);
   }
 
-  String _compactTime(DateTime time) {
+  String _clock(DateTime time) {
     final hour = time.hour.toString().padLeft(2, '0');
     final minute = time.minute.toString().padLeft(2, '0');
     return '$hour:$minute';

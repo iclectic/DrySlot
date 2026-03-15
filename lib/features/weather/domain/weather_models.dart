@@ -130,6 +130,79 @@ class WeatherLocation {
   ];
 }
 
+class SavedCommuteWindow {
+  const SavedCommuteWindow({
+    required this.id,
+    required this.label,
+    required this.startMinutes,
+    required this.endMinutes,
+  });
+
+  final String id;
+  final String label;
+  final int startMinutes;
+  final int endMinutes;
+
+  Map<String, Object> toJson() {
+    return <String, Object>{
+      'id': id,
+      'label': label,
+      'startMinutes': startMinutes,
+      'endMinutes': endMinutes,
+    };
+  }
+
+  factory SavedCommuteWindow.fromJson(Map<String, dynamic> json) {
+    return SavedCommuteWindow(
+      id: json['id'] as String? ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      label: json['label'] as String? ?? 'Saved window',
+      startMinutes: (json['startMinutes'] as num?)?.toInt() ?? 480,
+      endMinutes: (json['endMinutes'] as num?)?.toInt() ?? 540,
+    );
+  }
+
+  SavedCommuteWindow copyWith({
+    String? id,
+    String? label,
+    int? startMinutes,
+    int? endMinutes,
+  }) {
+    return SavedCommuteWindow(
+      id: id ?? this.id,
+      label: label ?? this.label,
+      startMinutes: startMinutes ?? this.startMinutes,
+      endMinutes: endMinutes ?? this.endMinutes,
+    );
+  }
+
+  static const defaults = <SavedCommuteWindow>[
+    SavedCommuteWindow(
+      id: 'morning-commute',
+      label: 'Morning commute',
+      startMinutes: 7 * 60 + 30,
+      endMinutes: 8 * 60 + 30,
+    ),
+    SavedCommuteWindow(
+      id: 'evening-commute',
+      label: 'Evening commute',
+      startMinutes: 17 * 60,
+      endMinutes: 18 * 60,
+    ),
+    SavedCommuteWindow(
+      id: 'school-run',
+      label: 'School run',
+      startMinutes: 8 * 60,
+      endMinutes: 8 * 60 + 45,
+    ),
+    SavedCommuteWindow(
+      id: 'gym-walk',
+      label: 'Walk to the gym',
+      startMinutes: 18 * 60 + 30,
+      endMinutes: 19 * 60 + 15,
+    ),
+  ];
+}
+
 class CurrentConditions {
   const CurrentConditions({
     required this.time,
@@ -279,6 +352,7 @@ class NextHourInsight {
     required this.departureAdvice,
     required this.tone,
     required this.maxPrecipitationMm,
+    this.minutesUntilRain,
   });
 
   final String title;
@@ -286,10 +360,12 @@ class NextHourInsight {
   final String departureAdvice;
   final AdviceTone tone;
   final double maxPrecipitationMm;
+  final int? minutesUntilRain;
 }
 
 class DryWindowInsight {
   const DryWindowInsight({
+    required this.headline,
     required this.isAvailable,
     required this.start,
     required this.end,
@@ -299,6 +375,7 @@ class DryWindowInsight {
     required this.tone,
   });
 
+  final String headline;
   final bool isAvailable;
   final DateTime? start;
   final DateTime? end;
@@ -310,30 +387,34 @@ class DryWindowInsight {
 
 class CommuteLeg {
   const CommuteLeg({
+    required this.id,
     required this.label,
     required this.start,
     required this.end,
     required this.tone,
     required this.detail,
+    required this.summary,
     required this.score,
   });
 
+  final String id;
   final String label;
   final DateTime start;
   final DateTime end;
   final AdviceTone tone;
   final String detail;
+  final String summary;
   final int score;
 }
 
 class CommuteOverview {
   const CommuteOverview({
-    required this.morning,
-    required this.evening,
+    required this.windows,
+    required this.summary,
   });
 
-  final CommuteLeg morning;
-  final CommuteLeg evening;
+  final List<CommuteLeg> windows;
+  final String summary;
 }
 
 class WearTip {

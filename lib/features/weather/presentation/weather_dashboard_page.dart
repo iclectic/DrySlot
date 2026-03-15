@@ -60,6 +60,23 @@ class _WeatherDashboardPageState extends State<WeatherDashboardPage> {
     }
   }
 
+  Future<void> _openCommuteWindowManager() async {
+    final result = await showModalBottomSheet<List<SavedCommuteWindow>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return CommuteWindowsSheet(
+          initialWindows: _controller.commuteWindows,
+        );
+      },
+    );
+
+    if (result != null) {
+      await _controller.saveCommuteWindows(result);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -114,6 +131,8 @@ class _WeatherDashboardPageState extends State<WeatherDashboardPage> {
                               const SizedBox(height: 16),
                               _DryWindowCard(guidance: guidance),
                               const SizedBox(height: 16),
+                              _DailyGuidanceCard(guidance: guidance),
+                              const SizedBox(height: 16),
                               _WearCard(guidance: guidance),
                               const SizedBox(height: 16),
                               _RiskCard(guidance: guidance),
@@ -121,26 +140,40 @@ class _WeatherDashboardPageState extends State<WeatherDashboardPage> {
                             final rightColumn = <Widget>[
                               _HourlyStripCard(guidance: guidance),
                               const SizedBox(height: 16),
-                              _CommuteCard(guidance: guidance),
+                              _CommuteCard(
+                                guidance: guidance,
+                                onManageWindows: _openCommuteWindowManager,
+                              ),
                               const SizedBox(height: 16),
                               _ActivitiesCard(guidance: guidance),
                               const SizedBox(height: 16),
                               _FooterNote(report: report),
                             ];
+                            final narrowCards = <Widget>[
+                              _NextHourCard(report: report, guidance: guidance),
+                              const SizedBox(height: 16),
+                              _HourlyStripCard(guidance: guidance),
+                              const SizedBox(height: 16),
+                              _DryWindowCard(guidance: guidance),
+                              const SizedBox(height: 16),
+                              _DailyGuidanceCard(guidance: guidance),
+                              const SizedBox(height: 16),
+                              _CommuteCard(
+                                guidance: guidance,
+                                onManageWindows: _openCommuteWindowManager,
+                              ),
+                              const SizedBox(height: 16),
+                              _WearCard(guidance: guidance),
+                              const SizedBox(height: 16),
+                              _ActivitiesCard(guidance: guidance),
+                              const SizedBox(height: 16),
+                              _RiskCard(guidance: guidance),
+                              const SizedBox(height: 16),
+                              _FooterNote(report: report),
+                            ];
 
                             if (!wide) {
-                              return Column(
-                                children: <Widget>[
-                                  ...leftColumn.take(1),
-                                  ...rightColumn.take(1),
-                                  ...leftColumn.skip(1).take(1),
-                                  ...rightColumn.skip(1).take(1),
-                                  ...leftColumn.skip(2).take(1),
-                                  ...rightColumn.skip(2).take(1),
-                                  ...leftColumn.skip(3),
-                                  ...rightColumn.skip(3),
-                                ],
-                              );
+                              return Column(children: narrowCards);
                             }
 
                             return Row(
@@ -463,12 +496,12 @@ class _DryWindowCard extends StatelessWidget {
             icon: Icons.wb_sunny_outlined,
           ),
           const SizedBox(height: 14),
+          Text(
+            window.headline,
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+          const SizedBox(height: 8),
           if (window.isAvailable && window.start != null && window.end != null) ...<Widget>[
-            Text(
-              formatTimeRange(window.start!, window.end!),
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-            const SizedBox(height: 8),
             Wrap(
               spacing: 10,
               runSpacing: 10,
@@ -560,8 +593,8 @@ class _HourlyStripCard extends StatelessWidget {
   }
 }
 
-class _CommuteCard extends StatelessWidget {
-  const _CommuteCard({required this.guidance});
+class _DailyGuidanceCard extends StatelessWidget {
+  const _DailyGuidanceCard({required this.guidance});
 
   final WeatherGuidance guidance;
 
@@ -572,18 +605,66 @@ class _CommuteCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           const _SectionHeader(
-            eyebrow: 'Commute',
-            title: 'How the key travel windows look',
-            icon: Icons.commute_rounded,
+            eyebrow: 'Simple Daily Guidance',
+            title: 'Plain English, not weather jargon',
+            icon: Icons.chat_bubble_outline_rounded,
           ),
           const SizedBox(height: 18),
+          Text(
+            guidance.simpleSummary,
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CommuteCard extends StatelessWidget {
+  const _CommuteCard({
+    required this.guidance,
+    required this.onManageWindows,
+  });
+
+  final WeatherGuidance guidance;
+  final VoidCallback onManageWindows;
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Expanded(child: _CommuteTile(leg: guidance.commute.morning)),
+              const Expanded(
+                child: _SectionHeader(
+                  eyebrow: 'Commute Forecast',
+                  title: 'Your saved time windows',
+                  icon: Icons.commute_rounded,
+                ),
+              ),
               const SizedBox(width: 12),
-              Expanded(child: _CommuteTile(leg: guidance.commute.evening)),
+              FilledButton.tonalIcon(
+                onPressed: onManageWindows,
+                icon: const Icon(Icons.edit_calendar_rounded),
+                label: const Text('Edit'),
+              ),
             ],
           ),
+          const SizedBox(height: 18),
+          Text(
+            guidance.commute.summary,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 16),
+          ...guidance.commute.windows.map((leg) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _CommuteTile(leg: leg),
+            );
+          }),
         ],
       ),
     );
@@ -772,7 +853,17 @@ class _CommuteTile extends StatelessWidget {
           Row(
             children: <Widget>[
               Expanded(
-                child: Text(leg.label, style: Theme.of(context).textTheme.titleLarge),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(leg.label, style: Theme.of(context).textTheme.titleLarge),
+                    const SizedBox(height: 4),
+                    Text(
+                      leg.summary,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
               ),
               _TonePill(
                 tone: leg.tone,
@@ -1216,6 +1307,405 @@ class _GlowOrb extends StatelessWidget {
       ),
     );
   }
+}
+
+class CommuteWindowsSheet extends StatefulWidget {
+  const CommuteWindowsSheet({
+    super.key,
+    required this.initialWindows,
+  });
+
+  final List<SavedCommuteWindow> initialWindows;
+
+  @override
+  State<CommuteWindowsSheet> createState() => _CommuteWindowsSheetState();
+}
+
+class _CommuteWindowsSheetState extends State<CommuteWindowsSheet> {
+  late List<SavedCommuteWindow> _windows;
+
+  @override
+  void initState() {
+    super.initState();
+    _windows = List<SavedCommuteWindow>.from(widget.initialWindows);
+  }
+
+  Future<void> _editWindow([SavedCommuteWindow? existing]) async {
+    final result = await showModalBottomSheet<SavedCommuteWindow>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return CommuteWindowEditorSheet(
+          initialWindow: existing,
+        );
+      },
+    );
+
+    if (result == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      final index = _windows.indexWhere((window) => window.id == result.id);
+      if (index == -1) {
+        _windows = <SavedCommuteWindow>[..._windows, result];
+      } else {
+        _windows = <SavedCommuteWindow>[
+          ..._windows.take(index),
+          result,
+          ..._windows.skip(index + 1),
+        ];
+      }
+      _windows.sort((a, b) => a.startMinutes.compareTo(b.startMinutes));
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.78,
+      minChildSize: 0.48,
+      maxChildSize: 0.92,
+      builder: (context, scrollController) {
+        return Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF081520),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          ),
+          child: Column(
+            children: <Widget>[
+              const SizedBox(height: 12),
+              Container(
+                height: 5,
+                width: 46,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.22),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      'Saved commute windows',
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Add the journeys you care about and Dry Slots will score them automatically.',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 16),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: <Widget>[
+                        FilledButton.tonalIcon(
+                          onPressed: _editWindow,
+                          icon: const Icon(Icons.add_rounded),
+                          label: const Text('Add window'),
+                        ),
+                        TextButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              _windows = SavedCommuteWindow.defaults;
+                            });
+                          },
+                          icon: const Icon(Icons.restart_alt_rounded),
+                          label: const Text('Reset defaults'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: ListView.separated(
+                  controller: scrollController,
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  itemCount: _windows.length,
+                  separatorBuilder: (_, index) => const SizedBox(height: 10),
+                  itemBuilder: (context, index) {
+                    final window = _windows[index];
+                    return Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(22),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                      ),
+                      child: Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: InkWell(
+                              onTap: () => _editWindow(window),
+                              borderRadius: BorderRadius.circular(18),
+                              child: Row(
+                                children: <Widget>[
+                                  Container(
+                                    height: 44,
+                                    width: 44,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(alpha: 0.06),
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                    child: const Icon(Icons.schedule_rounded, color: AppPalette.sky),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: <Widget>[
+                                        Text(
+                                          window.label,
+                                          style: Theme.of(context).textTheme.titleMedium,
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          _formatWindowMinutes(
+                                            window.startMinutes,
+                                            window.endMinutes,
+                                          ),
+                                          style: Theme.of(context).textTheme.bodySmall,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () {
+                              setState(() {
+                                _windows = _windows
+                                    .where((item) => item.id != window.id)
+                                    .toList(growable: false);
+                              });
+                            },
+                            icon: const Icon(Icons.delete_outline_rounded),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () => Navigator.of(context).pop(_windows),
+                    child: const Text('Save commute windows'),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class CommuteWindowEditorSheet extends StatefulWidget {
+  const CommuteWindowEditorSheet({
+    super.key,
+    this.initialWindow,
+  });
+
+  final SavedCommuteWindow? initialWindow;
+
+  @override
+  State<CommuteWindowEditorSheet> createState() => _CommuteWindowEditorSheetState();
+}
+
+class _CommuteWindowEditorSheetState extends State<CommuteWindowEditorSheet> {
+  late final TextEditingController _labelController;
+  late TimeOfDay _startTime;
+  late TimeOfDay _endTime;
+
+  @override
+  void initState() {
+    super.initState();
+    final initial = widget.initialWindow;
+    _labelController = TextEditingController(text: initial?.label ?? '');
+    _startTime = _minutesToTimeOfDay(initial?.startMinutes ?? 8 * 60);
+    _endTime = _minutesToTimeOfDay(initial?.endMinutes ?? 9 * 60);
+  }
+
+  @override
+  void dispose() {
+    _labelController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickTime({required bool isStart}) async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: isStart ? _startTime : _endTime,
+    );
+    if (picked == null || !mounted) {
+      return;
+    }
+    setState(() {
+      if (isStart) {
+        _startTime = picked;
+      } else {
+        _endTime = picked;
+      }
+    });
+  }
+
+  void _save() {
+    final label = _labelController.text.trim();
+    if (label.isEmpty) {
+      return;
+    }
+    final window = SavedCommuteWindow(
+      id: widget.initialWindow?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
+      label: label,
+      startMinutes: _timeOfDayToMinutes(_startTime),
+      endMinutes: _timeOfDayToMinutes(_endTime),
+    );
+    Navigator.of(context).pop(window);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF081520),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  widget.initialWindow == null ? 'Add commute window' : 'Edit commute window',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _labelController,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: const InputDecoration(
+                    labelText: 'Label',
+                    hintText: 'Morning commute',
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: _TimeField(
+                        label: 'Start',
+                        value: _formatTimeOfDay(_startTime),
+                        onTap: () => _pickTime(isStart: true),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _TimeField(
+                        label: 'End',
+                        value: _formatTimeOfDay(_endTime),
+                        onTap: () => _pickTime(isStart: false),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: _save,
+                    child: const Text('Save window'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TimeField extends StatelessWidget {
+  const _TimeField({
+    required this.label,
+    required this.value,
+    required this.onTap,
+  });
+
+  final String label;
+  final String value;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(22),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(label, style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 6),
+            Text(value, style: Theme.of(context).textTheme.titleLarge),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String _formatWindowMinutes(int startMinutes, int endMinutes) {
+  final start = _minutesToTimeOfDay(startMinutes);
+  final end = _minutesToTimeOfDay(endMinutes);
+  return '${_formatTimeOfDay(start)} to ${_formatTimeOfDay(end)}';
+}
+
+TimeOfDay _minutesToTimeOfDay(int totalMinutes) {
+  final normalized = ((totalMinutes % (24 * 60)) + (24 * 60)) % (24 * 60);
+  return TimeOfDay(
+    hour: normalized ~/ 60,
+    minute: normalized % 60,
+  );
+}
+
+int _timeOfDayToMinutes(TimeOfDay time) => time.hour * 60 + time.minute;
+
+String _formatTimeOfDay(TimeOfDay time) {
+  final hour = time.hour == 0
+      ? 12
+      : time.hour > 12
+          ? time.hour - 12
+          : time.hour;
+  final suffix = time.hour >= 12 ? 'pm' : 'am';
+  final minute = time.minute.toString().padLeft(2, '0');
+  return '$hour:$minute $suffix';
 }
 
 class LocationSearchSheet extends StatefulWidget {

@@ -4,6 +4,20 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   const advisor = WeatherAdvisor();
+  const savedWindows = <SavedCommuteWindow>[
+    SavedCommuteWindow(
+      id: 'school-run',
+      label: 'School run',
+      startMinutes: 8 * 60,
+      endMinutes: 8 * 60 + 45,
+    ),
+    SavedCommuteWindow(
+      id: 'gym-walk',
+      label: 'Walk to the gym',
+      startMinutes: 18 * 60 + 30,
+      endMinutes: 19 * 60 + 15,
+    ),
+  ];
 
   WeatherReport makeReport({
     required List<MinuteForecast> minutely,
@@ -80,7 +94,7 @@ void main() {
       ),
     );
 
-    final guidance = advisor.build(report);
+    final guidance = advisor.build(report, commuteWindows: savedWindows);
 
     expect(guidance.nextHour.tone, AdviceTone.go);
     expect(guidance.nextHour.departureAdvice, contains('head out'));
@@ -145,10 +159,67 @@ void main() {
       ),
     );
 
-    final guidance = advisor.build(report);
+    final guidance = advisor.build(report, commuteWindows: savedWindows);
 
     expect(guidance.nextHour.tone, isNot(AdviceTone.go));
     expect(guidance.risks.first.level, isNot(RiskLevel.calm));
     expect(guidance.headline.detail, isNotEmpty);
+  });
+
+  test('uses saved commute windows when scoring journeys', () {
+    final now = DateTime(2026, 3, 15, 7);
+    final report = makeReport(
+      current: CurrentConditions(
+        time: now,
+        temperatureC: 10,
+        apparentTemperatureC: 8,
+        weatherCode: 3,
+        isDay: true,
+        precipitationMm: 0,
+        rainMm: 0,
+        showersMm: 0,
+        cloudCover: 50,
+        windSpeedKph: 14,
+        windGustKph: 18,
+        visibilityMeters: 12000,
+      ),
+      minutely: const <MinuteForecast>[],
+      hourly: List<HourlyForecast>.generate(16, (index) {
+        final time = now.add(Duration(hours: index));
+        final wetSchoolRun = index == 1;
+        return HourlyForecast(
+          time: time,
+          temperatureC: 10,
+          apparentTemperatureC: 8,
+          precipitationProbability: wetSchoolRun ? 70 : 15,
+          precipitationMm: wetSchoolRun ? 1.0 : 0.02,
+          weatherCode: wetSchoolRun ? 80 : 3,
+          windSpeedKph: wetSchoolRun ? 24 : 12,
+          windGustKph: wetSchoolRun ? 32 : 18,
+          visibilityMeters: wetSchoolRun ? 5000 : 12000,
+          cloudCover: wetSchoolRun ? 78 : 35,
+          uvIndex: 1,
+          isDay: time.hour >= 7 && time.hour < 19,
+        );
+      }),
+      today: DailyForecast(
+        date: now,
+        weatherCode: 3,
+        maxTempC: 13,
+        minTempC: 7,
+        precipitationMm: 2.1,
+        precipitationProbabilityMax: 70,
+        maxWindKph: 24,
+        uvIndexMax: 2,
+        sunrise: DateTime(2026, 3, 15, 6, 18),
+        sunset: DateTime(2026, 3, 15, 18, 6),
+      ),
+    );
+
+    final guidance = advisor.build(report, commuteWindows: savedWindows);
+
+    expect(guidance.commute.windows, hasLength(2));
+    expect(guidance.commute.windows.first.label, 'School run');
+    expect(guidance.commute.windows.last.label, 'Walk to the gym');
   });
 }
