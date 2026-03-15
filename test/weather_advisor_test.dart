@@ -222,4 +222,148 @@ void main() {
     expect(guidance.commute.windows.first.label, 'School run');
     expect(guidance.commute.windows.last.label, 'Walk to the gym');
   });
+
+  test('generates outfit suggestions using practical plain-English labels', () {
+    final now = DateTime(2026, 3, 15, 7, 30);
+    final report = makeReport(
+      current: CurrentConditions(
+        time: now,
+        temperatureC: 7,
+        apparentTemperatureC: 5,
+        weatherCode: 61,
+        isDay: true,
+        precipitationMm: 0.2,
+        rainMm: 0.2,
+        showersMm: 0,
+        cloudCover: 80,
+        windSpeedKph: 18,
+        windGustKph: 22,
+        visibilityMeters: 11000,
+      ),
+      minutely: List<MinuteForecast>.generate(4, (index) {
+        return MinuteForecast(
+          time: now.add(Duration(minutes: index * 15)),
+          precipitationMm: index >= 1 ? 0.15 : 0,
+          weatherCode: index >= 1 ? 61 : 3,
+          windSpeedKph: 18,
+          visibilityMeters: 11000,
+          isDay: true,
+        );
+      }),
+      hourly: List<HourlyForecast>.generate(8, (index) {
+        return HourlyForecast(
+          time: now.add(Duration(hours: index)),
+          temperatureC: 7.0 + index,
+          apparentTemperatureC: 5.0 + index,
+          precipitationProbability: index < 2 ? 65 : 25,
+          precipitationMm: index < 2 ? 0.4 : 0.02,
+          weatherCode: index < 2 ? 61 : 3,
+          windSpeedKph: 18,
+          windGustKph: 24,
+          visibilityMeters: 12000,
+          cloudCover: index < 2 ? 80 : 40,
+          uvIndex: 2,
+          isDay: true,
+        );
+      }),
+      today: DailyForecast(
+        date: now,
+        weatherCode: 61,
+        maxTempC: 14,
+        minTempC: 4,
+        precipitationMm: 1.8,
+        precipitationProbabilityMax: 65,
+        maxWindKph: 20,
+        uvIndexMax: 2.4,
+        sunrise: DateTime(2026, 3, 15, 6, 18),
+        sunset: DateTime(2026, 3, 15, 18, 6),
+      ),
+    );
+
+    final guidance = advisor.build(report, commuteWindows: savedWindows);
+
+    expect(guidance.wearTips.first.title, anyOf('Umbrella recommended', 'Take a light waterproof'));
+    expect(
+      guidance.wearTips.map((tip) => tip.title),
+      contains('Cold start, warmer by noon'),
+    );
+  });
+
+  test('returns all required activity scores out of ten', () {
+    final now = DateTime(2026, 3, 15, 12);
+    final report = makeReport(
+      current: CurrentConditions(
+        time: now,
+        temperatureC: 15,
+        apparentTemperatureC: 14,
+        weatherCode: 1,
+        isDay: true,
+        precipitationMm: 0,
+        rainMm: 0,
+        showersMm: 0,
+        cloudCover: 28,
+        windSpeedKph: 12,
+        windGustKph: 18,
+        visibilityMeters: 16000,
+      ),
+      minutely: List<MinuteForecast>.generate(4, (index) {
+        return MinuteForecast(
+          time: now.add(Duration(minutes: index * 15)),
+          precipitationMm: 0,
+          weatherCode: 1,
+          windSpeedKph: 12,
+          visibilityMeters: 16000,
+          isDay: true,
+        );
+      }),
+      hourly: List<HourlyForecast>.generate(8, (index) {
+        return HourlyForecast(
+          time: now.add(Duration(hours: index)),
+          temperatureC: 15,
+          apparentTemperatureC: 14,
+          precipitationProbability: 10,
+          precipitationMm: 0,
+          weatherCode: 1,
+          windSpeedKph: 12,
+          windGustKph: 18,
+          visibilityMeters: 16000,
+          cloudCover: 30,
+          uvIndex: 3.5,
+          isDay: true,
+        );
+      }),
+      today: DailyForecast(
+        date: now,
+        weatherCode: 1,
+        maxTempC: 17,
+        minTempC: 9,
+        precipitationMm: 0,
+        precipitationProbabilityMax: 10,
+        maxWindKph: 16,
+        uvIndexMax: 4,
+        sunrise: DateTime(2026, 3, 15, 6, 18),
+        sunset: DateTime(2026, 3, 15, 18, 6),
+      ),
+    );
+
+    final guidance = advisor.build(report, commuteWindows: savedWindows);
+
+    final names = guidance.activities.map((activity) => activity.name).toList(growable: false);
+    expect(
+      names,
+      <String>[
+        'Walking',
+        'Running',
+        'Cycling',
+        'Picnic',
+        'Laundry drying',
+        'Dog walk',
+        'Football',
+        'Outdoor coffee',
+      ],
+    );
+    for (final activity in guidance.activities) {
+      expect(activity.score, inInclusiveRange(0, 10));
+    }
+  });
 }

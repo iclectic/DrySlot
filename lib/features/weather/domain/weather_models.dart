@@ -432,12 +432,14 @@ class WearTip {
 class ActivityRecommendation {
   const ActivityRecommendation({
     required this.name,
+    required this.score,
     required this.detail,
     required this.suitability,
     required this.icon,
   });
 
   final String name;
+  final int score;
   final String detail;
   final ActivitySuitability suitability;
   final IconData icon;

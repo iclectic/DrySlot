@@ -678,17 +678,59 @@ class _WearCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final primaryTip = guidance.wearTips.first;
+    final secondaryTips = guidance.wearTips.skip(1).toList(growable: false);
     return GlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           const _SectionHeader(
-            eyebrow: 'What To Wear',
-            title: 'Practical kit for today',
+            eyebrow: 'Outfit Suggestion',
+            title: 'Practical clothing guidance',
             icon: Icons.checkroom_rounded,
           ),
           const SizedBox(height: 18),
-          ...guidance.wearTips.map((tip) {
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Container(
+                  height: 54,
+                  width: 54,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Icon(primaryTip.icon, color: AppPalette.teal),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        primaryTip.title,
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        primaryTip.detail,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (secondaryTips.isNotEmpty) const SizedBox(height: 14),
+          ...secondaryTips.map((tip) {
             return Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: Row(
@@ -736,8 +778,8 @@ class _ActivitiesCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           const _SectionHeader(
-            eyebrow: 'Suitable Today',
-            title: 'How the day stacks up for real plans',
+            eyebrow: 'Activity Scores',
+            title: 'Simple scores out of 10',
             icon: Icons.event_available_rounded,
           ),
           const SizedBox(height: 18),
@@ -894,9 +936,9 @@ class _ActivityTile extends StatelessWidget {
       ActivitySuitability.poor => AppPalette.coral,
     };
     final label = switch (activity.suitability) {
-      ActivitySuitability.great => 'Good',
-      ActivitySuitability.okay => 'Manageable',
-      ActivitySuitability.poor => 'Low confidence',
+      ActivitySuitability.great => 'Strong',
+      ActivitySuitability.okay => 'Mixed',
+      ActivitySuitability.poor => 'Weak',
     };
 
     return Container(
@@ -916,7 +958,20 @@ class _ActivityTile extends StatelessWidget {
               Expanded(
                 child: Text(activity.name, style: Theme.of(context).textTheme.titleMedium),
               ),
-              Text(label, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: color)),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: <Widget>[
+                  Text(
+                    '${activity.score}/10',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(color: color),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    label,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: color),
+                  ),
+                ],
+              ),
             ],
           ),
           const SizedBox(height: 10),
