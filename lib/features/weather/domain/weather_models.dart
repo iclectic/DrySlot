@@ -6,6 +6,8 @@ enum ActivitySuitability { great, okay, poor }
 
 enum RiskLevel { calm, headsUp, high }
 
+enum AlertSource { forecast, official }
+
 class WeatherLocation {
   const WeatherLocation({
     required this.name,
@@ -177,27 +179,39 @@ class SavedCommuteWindow {
 
   static const defaults = <SavedCommuteWindow>[
     SavedCommuteWindow(
-      id: 'morning-commute',
-      label: 'Morning commute',
-      startMinutes: 7 * 60 + 30,
-      endMinutes: 8 * 60 + 30,
+      id: 'morning-walk',
+      label: 'My morning walk',
+      startMinutes: 7 * 60,
+      endMinutes: 7 * 60 + 45,
     ),
     SavedCommuteWindow(
-      id: 'evening-commute',
-      label: 'Evening commute',
-      startMinutes: 17 * 60,
-      endMinutes: 18 * 60,
-    ),
-    SavedCommuteWindow(
-      id: 'school-run',
-      label: 'School run',
+      id: 'my-commute',
+      label: 'My commute',
       startMinutes: 8 * 60,
       endMinutes: 8 * 60 + 45,
     ),
     SavedCommuteWindow(
+      id: 'lunch-break',
+      label: 'Lunch break outside',
+      startMinutes: 12 * 60 + 15,
+      endMinutes: 13 * 60,
+    ),
+    SavedCommuteWindow(
+      id: 'school-pickup',
+      label: 'School pickup',
+      startMinutes: 15 * 60,
+      endMinutes: 15 * 60 + 45,
+    ),
+    SavedCommuteWindow(
       id: 'gym-walk',
-      label: 'Walk to the gym',
-      startMinutes: 18 * 60 + 30,
+      label: 'Gym walk',
+      startMinutes: 18 * 60,
+      endMinutes: 18 * 60 + 45,
+    ),
+    SavedCommuteWindow(
+      id: 'evening-jog',
+      label: 'Evening jog',
+      startMinutes: 17 * 60,
       endMinutes: 19 * 60 + 15,
     ),
   ];
@@ -317,6 +331,7 @@ class WeatherReport {
     required this.today,
     required this.usingFallback,
     required this.sourceLabel,
+    this.officialWarnings = const <OfficialWarning>[],
     this.sourceNote,
   });
 
@@ -328,7 +343,24 @@ class WeatherReport {
   final DailyForecast today;
   final bool usingFallback;
   final String sourceLabel;
+  final List<OfficialWarning> officialWarnings;
   final String? sourceNote;
+}
+
+class OfficialWarning {
+  const OfficialWarning({
+    required this.title,
+    required this.summary,
+    required this.severityLabel,
+    required this.sourceLabel,
+    this.link,
+  });
+
+  final String title;
+  final String summary;
+  final String severityLabel;
+  final String sourceLabel;
+  final String? link;
 }
 
 class GuidanceHeadline {
@@ -451,12 +483,34 @@ class RiskNote {
     required this.detail,
     required this.level,
     required this.icon,
+    this.source = AlertSource.forecast,
+    this.sourceLabel = 'Forecast signal',
+    this.link,
   });
 
   final String title;
   final String detail;
   final RiskLevel level;
   final IconData icon;
+  final AlertSource source;
+  final String sourceLabel;
+  final String? link;
+}
+
+class HomeSummaryCard {
+  const HomeSummaryCard({
+    required this.title,
+    required this.value,
+    required this.detail,
+    required this.icon,
+    required this.tone,
+  });
+
+  final String title;
+  final String value;
+  final String detail;
+  final IconData icon;
+  final AdviceTone tone;
 }
 
 class WeatherGuidance {
@@ -470,6 +524,7 @@ class WeatherGuidance {
     required this.risks,
     required this.simpleSummary,
     required this.highlightHours,
+    required this.homeCards,
   });
 
   final GuidanceHeadline headline;
@@ -481,4 +536,5 @@ class WeatherGuidance {
   final List<RiskNote> risks;
   final String simpleSummary;
   final List<HourlyForecast> highlightHours;
+  final List<HomeSummaryCard> homeCards;
 }

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:http/http.dart' as http;
+import 'package:xml/xml.dart';
 
 import '../domain/weather_models.dart';
 
@@ -43,12 +44,14 @@ class OpenMeteoWeatherRepository implements WeatherRepository {
     );
 
     try {
+      final warningsFuture = _fetchOfficialWarnings(location);
       final response = await _client.get(uri);
       if (response.statusCode != 200) {
         throw Exception('Forecast request failed: ${response.statusCode}');
       }
       final json = jsonDecode(response.body) as Map<String, dynamic>;
-      return _parseReport(location, json);
+      final warnings = await warningsFuture;
+      return _parseReport(location, json, warnings);
     } catch (_) {
       return _fallback.fetchWeather(location);
     }
@@ -98,7 +101,11 @@ class OpenMeteoWeatherRepository implements WeatherRepository {
     }
   }
 
-  WeatherReport _parseReport(WeatherLocation location, Map<String, dynamic> json) {
+  WeatherReport _parseReport(
+    WeatherLocation location,
+    Map<String, dynamic> json,
+    List<OfficialWarning> officialWarnings,
+  ) {
     final currentJson = json['current'] as Map<String, dynamic>? ?? <String, dynamic>{};
     final hourlyJson = json['hourly'] as Map<String, dynamic>? ?? <String, dynamic>{};
     final dailyJson = json['daily'] as Map<String, dynamic>? ?? <String, dynamic>{};
@@ -134,8 +141,50 @@ class OpenMeteoWeatherRepository implements WeatherRepository {
       today: daily.first,
       usingFallback: false,
       sourceLabel: 'Live weather by Open-Meteo',
+      officialWarnings: officialWarnings,
       sourceNote: 'Live forecast with UK-focused guidance.',
     );
+  }
+
+  Future<List<OfficialWarning>> _fetchOfficialWarnings(WeatherLocation location) async {
+    try {
+      final uri = Uri.https(
+        'weather.metoffice.gov.uk',
+        '/public/data/PWSCache/WarningsRSS/Region/UK',
+      );
+      final response = await _client.get(uri);
+      if (response.statusCode != 200 || response.body.trim().isEmpty) {
+        return const <OfficialWarning>[];
+      }
+
+      final document = XmlDocument.parse(response.body);
+      final warnings = document.findAllElements('item').map((item) {
+        final title = _xmlText(item, 'title');
+        final summary = _stripHtml(_xmlText(item, 'description'));
+        final link = _xmlText(item, 'link');
+        return OfficialWarning(
+          title: title,
+          summary: summary,
+          severityLabel: _severityLabel('$title $summary'),
+          sourceLabel: 'Met Office official warning',
+          link: link.isEmpty ? null : link,
+        );
+      }).where((warning) => warning.title.isNotEmpty).toList(growable: false);
+
+      final matching = warnings.where((warning) {
+        return _warningMatchesLocation(warning, location);
+      }).take(3).toList(growable: false);
+
+      if (matching.isNotEmpty) {
+        return matching;
+      }
+      if (warnings.length == 1) {
+        return warnings.take(1).toList(growable: false);
+      }
+      return const <OfficialWarning>[];
+    } catch (_) {
+      return const <OfficialWarning>[];
+    }
   }
 
   List<MinuteForecast> _parseMinutely(
@@ -361,6 +410,75 @@ class OpenMeteoWeatherRepository implements WeatherRepository {
   DateTime _parseDateTime(String? value) {
     return DateTime.tryParse(value ?? '') ?? DateTime.now();
   }
+
+  String _xmlText(XmlElement element, String name) {
+    return element.getElement(name)?.innerText.trim() ?? '';
+  }
+
+  String _stripHtml(String value) {
+    return value
+        .replaceAll(RegExp(r'<[^>]+>'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  String _severityLabel(String value) {
+    final lower = value.toLowerCase();
+    if (lower.contains('red')) {
+      return 'Red warning';
+    }
+    if (lower.contains('amber')) {
+      return 'Amber warning';
+    }
+    if (lower.contains('yellow')) {
+      return 'Yellow warning';
+    }
+    return 'Official warning';
+  }
+
+  bool _warningMatchesLocation(OfficialWarning warning, WeatherLocation location) {
+    final text = '${warning.title} ${warning.summary}'.toLowerCase();
+    final keywords = <String>{
+      location.name.toLowerCase(),
+      location.region.toLowerCase(),
+      ..._regionalKeywords(location),
+    }.where((keyword) => keyword.trim().isNotEmpty);
+
+    return keywords.any(text.contains);
+  }
+
+  Set<String> _regionalKeywords(WeatherLocation location) {
+    final lowerName = location.name.toLowerCase();
+    final lowerRegion = location.region.toLowerCase();
+
+    if (lowerRegion.contains('wales') || lowerName.contains('cardiff')) {
+      return const <String>{'wales'};
+    }
+    if (lowerRegion.contains('northern ireland') || lowerName.contains('belfast')) {
+      return const <String>{'northern ireland'};
+    }
+    if (lowerRegion.contains('scotland') ||
+        lowerName.contains('edinburgh') ||
+        lowerName.contains('glasgow')) {
+      return const <String>{'scotland'};
+    }
+    if (lowerName.contains('london') || lowerRegion.contains('london')) {
+      return const <String>{'london', 'south east england'};
+    }
+    if (lowerName.contains('manchester')) {
+      return const <String>{'north west england'};
+    }
+    if (lowerName.contains('leeds')) {
+      return const <String>{'yorkshire', 'the humber'};
+    }
+    if (lowerName.contains('birmingham')) {
+      return const <String>{'west midlands'};
+    }
+    if (lowerName.contains('bristol')) {
+      return const <String>{'south west england'};
+    }
+    return const <String>{'england'};
+  }
 }
 
 class DemoWeatherRepository implements WeatherRepository {
@@ -454,6 +572,16 @@ class DemoWeatherRepository implements WeatherRepository {
       ),
       usingFallback: true,
       sourceLabel: 'Sample outlook',
+      officialWarnings: drift >= 3
+          ? const <OfficialWarning>[
+              OfficialWarning(
+                title: 'Yellow warning of wind',
+                summary: 'Met Office warning feed unavailable, showing a built-in sample warning.',
+                severityLabel: 'Yellow warning',
+                sourceLabel: 'Sample official warning',
+              ),
+            ]
+          : const <OfficialWarning>[],
       sourceNote: 'Live forecast unavailable, so Dry Slots is showing a built-in demo.',
     );
   }

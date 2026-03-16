@@ -24,6 +24,7 @@ void main() {
     required List<HourlyForecast> hourly,
     required CurrentConditions current,
     required DailyForecast today,
+    List<OfficialWarning> officialWarnings = const <OfficialWarning>[],
   }) {
     return WeatherReport(
       location: WeatherLocation.london,
@@ -34,6 +35,7 @@ void main() {
       today: today,
       usingFallback: false,
       sourceLabel: 'Test',
+      officialWarnings: officialWarnings,
     );
   }
 
@@ -365,5 +367,86 @@ void main() {
     for (final activity in guidance.activities) {
       expect(activity.score, inInclusiveRange(0, 10));
     }
+  });
+
+  test('surfaces official warnings in severe alerts and builds widget-ready cards', () {
+    final now = DateTime(2026, 3, 15, 9);
+    final report = makeReport(
+      current: CurrentConditions(
+        time: now,
+        temperatureC: 11,
+        apparentTemperatureC: 9,
+        weatherCode: 3,
+        isDay: true,
+        precipitationMm: 0,
+        rainMm: 0,
+        showersMm: 0,
+        cloudCover: 62,
+        windSpeedKph: 20,
+        windGustKph: 28,
+        visibilityMeters: 12000,
+      ),
+      minutely: List<MinuteForecast>.generate(4, (index) {
+        return MinuteForecast(
+          time: now.add(Duration(minutes: index * 15)),
+          precipitationMm: 0,
+          weatherCode: 3,
+          windSpeedKph: 18,
+          visibilityMeters: 12000,
+          isDay: true,
+        );
+      }),
+      hourly: List<HourlyForecast>.generate(8, (index) {
+        return HourlyForecast(
+          time: now.add(Duration(hours: index)),
+          temperatureC: 11,
+          apparentTemperatureC: 9,
+          precipitationProbability: 20,
+          precipitationMm: 0.05,
+          weatherCode: 3,
+          windSpeedKph: 20,
+          windGustKph: 28,
+          visibilityMeters: 12000,
+          cloudCover: 60,
+          uvIndex: 1.5,
+          isDay: true,
+        );
+      }),
+      today: DailyForecast(
+        date: now,
+        weatherCode: 3,
+        maxTempC: 13,
+        minTempC: 5,
+        precipitationMm: 0.5,
+        precipitationProbabilityMax: 20,
+        maxWindKph: 30,
+        uvIndexMax: 2,
+        sunrise: DateTime(2026, 3, 15, 6, 18),
+        sunset: DateTime(2026, 3, 15, 18, 6),
+      ),
+      officialWarnings: const <OfficialWarning>[
+        OfficialWarning(
+          title: 'Yellow warning of wind',
+          summary: 'Official warning in force for the London area.',
+          severityLabel: 'Yellow warning',
+          sourceLabel: 'Met Office official warning',
+        ),
+      ],
+    );
+
+    final guidance = advisor.build(report, commuteWindows: savedWindows);
+
+    expect(guidance.risks.first.source, AlertSource.official);
+    expect(guidance.homeCards, hasLength(5));
+    expect(
+      guidance.homeCards.map((card) => card.title),
+      containsAll(<String>[
+        'Current weather',
+        'Next rain',
+        'Best dry slot',
+        'Commute summary',
+        'Daily advice',
+      ]),
+    );
   });
 }

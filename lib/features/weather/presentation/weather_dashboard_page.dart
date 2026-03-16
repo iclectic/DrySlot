@@ -123,6 +123,8 @@ class _WeatherDashboardPageState extends State<WeatherDashboardPage> {
                           onPickLocation: _openLocationPicker,
                         ),
                         const SizedBox(height: 16),
+                        _WidgetSummaryStrip(guidance: guidance),
+                        const SizedBox(height: 16),
                         LayoutBuilder(
                           builder: (context, constraints) {
                             final wide = constraints.maxWidth >= 940;
@@ -372,6 +374,39 @@ class _HeroCard extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WidgetSummaryStrip extends StatelessWidget {
+  const _WidgetSummaryStrip({required this.guidance});
+
+  final WeatherGuidance guidance;
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const _SectionHeader(
+            eyebrow: 'Clean Widgets',
+            title: 'Widget-ready home summaries',
+            icon: Icons.widgets_outlined,
+          ),
+          const SizedBox(height: 18),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: guidance.homeCards.map((card) {
+              return ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 220, maxWidth: 280),
+                child: _WidgetSummaryTile(card: card),
+              );
+            }).toList(growable: false),
           ),
         ],
       ),
@@ -640,8 +675,8 @@ class _CommuteCard extends StatelessWidget {
             children: <Widget>[
               const Expanded(
                 child: _SectionHeader(
-                  eyebrow: 'Commute Forecast',
-                  title: 'Your saved time windows',
+                  eyebrow: 'Favourite Routines',
+                  title: 'Your saved windows, scored daily',
                   icon: Icons.commute_rounded,
                 ),
               ),
@@ -649,7 +684,7 @@ class _CommuteCard extends StatelessWidget {
               FilledButton.tonalIcon(
                 onPressed: onManageWindows,
                 icon: const Icon(Icons.edit_calendar_rounded),
-                label: const Text('Edit'),
+                label: const Text('Manage'),
               ),
             ],
           ),
@@ -811,8 +846,8 @@ class _RiskCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           const _SectionHeader(
-            eyebrow: 'Severe Risk',
-            title: 'Anything worth a second look?',
+            eyebrow: 'Severe Weather Alerts',
+            title: 'Forecast risks and official warnings',
             icon: Icons.warning_amber_rounded,
           ),
           const SizedBox(height: 18),
@@ -843,6 +878,11 @@ class _RiskCard extends StatelessWidget {
                           Text(risk.title, style: Theme.of(context).textTheme.titleMedium),
                           const SizedBox(height: 4),
                           Text(risk.detail, style: Theme.of(context).textTheme.bodySmall),
+                          const SizedBox(height: 8),
+                          _SourcePill(
+                            label: risk.sourceLabel,
+                            color: color,
+                          ),
                         ],
                       ),
                     ),
@@ -868,7 +908,7 @@ class _FooterNote extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(4, 4, 4, 20),
       child: Text(
         report.sourceNote ??
-            'Weather data is provided by Open-Meteo when live forecasts are available.',
+            'Weather data is provided by Open-Meteo, with Met Office warnings shown where available.',
         style: Theme.of(context).textTheme.bodySmall,
       ),
     );
@@ -977,6 +1017,93 @@ class _ActivityTile extends StatelessWidget {
           const SizedBox(height: 10),
           Text(activity.detail, style: Theme.of(context).textTheme.bodySmall),
         ],
+      ),
+    );
+  }
+}
+
+class _WidgetSummaryTile extends StatelessWidget {
+  const _WidgetSummaryTile({required this.card});
+
+  final HomeSummaryCard card;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = switch (card.tone) {
+      AdviceTone.go => AppPalette.teal,
+      AdviceTone.watch => AppPalette.amber,
+      AdviceTone.wait => AppPalette.coral,
+    };
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Container(
+                height: 42,
+                width: 42,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(card.icon, color: color),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  card.title,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(
+            card.value,
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            card.detail,
+            style: Theme.of(context).textTheme.bodySmall,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SourcePill extends StatelessWidget {
+  const _SourcePill({
+    required this.label,
+    required this.color,
+  });
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.24)),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: color),
       ),
     );
   }
@@ -1446,12 +1573,12 @@ class _CommuteWindowsSheetState extends State<CommuteWindowsSheet> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Text(
-                      'Saved commute windows',
+                      'Favourite routines',
                       style: Theme.of(context).textTheme.headlineSmall,
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Add the journeys you care about and Dry Slots will score them automatically.',
+                      'Save the routines you care about and Dry Slots will summarise them each day.',
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                     const SizedBox(height: 16),
@@ -1462,7 +1589,7 @@ class _CommuteWindowsSheetState extends State<CommuteWindowsSheet> {
                         FilledButton.tonalIcon(
                           onPressed: _editWindow,
                           icon: const Icon(Icons.add_rounded),
-                          label: const Text('Add window'),
+                          label: const Text('Add routine'),
                         ),
                         TextButton.icon(
                           onPressed: () {
@@ -1471,7 +1598,7 @@ class _CommuteWindowsSheetState extends State<CommuteWindowsSheet> {
                             });
                           },
                           icon: const Icon(Icons.restart_alt_rounded),
-                          label: const Text('Reset defaults'),
+                          label: const Text('Reset examples'),
                         ),
                       ],
                     ),
@@ -1556,7 +1683,7 @@ class _CommuteWindowsSheetState extends State<CommuteWindowsSheet> {
                   width: double.infinity,
                   child: FilledButton(
                     onPressed: () => Navigator.of(context).pop(_windows),
-                    child: const Text('Save commute windows'),
+                    child: const Text('Save routines'),
                   ),
                 ),
               ),
@@ -1651,7 +1778,7 @@ class _CommuteWindowEditorSheetState extends State<CommuteWindowEditorSheet> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Text(
-                  widget.initialWindow == null ? 'Add commute window' : 'Edit commute window',
+                  widget.initialWindow == null ? 'Add favourite routine' : 'Edit favourite routine',
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
                 const SizedBox(height: 16),
@@ -1660,7 +1787,7 @@ class _CommuteWindowEditorSheetState extends State<CommuteWindowEditorSheet> {
                   textCapitalization: TextCapitalization.sentences,
                   decoration: const InputDecoration(
                     labelText: 'Label',
-                    hintText: 'Morning commute',
+                    hintText: 'Evening jog',
                   ),
                 ),
                 const SizedBox(height: 16),

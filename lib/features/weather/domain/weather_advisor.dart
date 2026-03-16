@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/utils/formatters.dart';
 import 'weather_describer.dart';
 import 'weather_models.dart';
 
@@ -25,6 +26,13 @@ class WeatherAdvisor {
       dryWindow,
       wearTips,
     );
+    final homeCards = _buildHomeCards(
+      report,
+      nextHour,
+      dryWindow,
+      commute,
+      simpleSummary,
+    );
 
     return WeatherGuidance(
       headline: headline,
@@ -36,6 +44,7 @@ class WeatherAdvisor {
       risks: risks,
       simpleSummary: simpleSummary,
       highlightHours: report.hourly.take(6).toList(growable: false),
+      homeCards: homeCards,
     );
   }
 
@@ -215,10 +224,10 @@ class WeatherAdvisor {
     final helpfulCount = windows.where((window) => window.tone == AdviceTone.go).length;
 
     final summary = roughCount > 0
-        ? '$roughCount saved ${roughCount == 1 ? 'journey looks' : 'journeys look'} rough, so time them carefully.'
+        ? '$roughCount favourite ${roughCount == 1 ? 'routine looks' : 'routines look'} rough, so plan around them.'
         : helpfulCount == windows.length
-            ? 'Your saved journeys look manageable today.'
-            : 'A mixed picture across your saved journeys.';
+            ? 'Your favourite routines look manageable today.'
+            : 'A mixed picture across your favourite routines.';
 
     return CommuteOverview(
       windows: windows,
@@ -440,6 +449,20 @@ class WeatherAdvisor {
 
   List<RiskNote> _buildRisks(WeatherReport report) {
     final risks = <RiskNote>[];
+    for (final warning in report.officialWarnings) {
+      risks.add(
+        RiskNote(
+          title: warning.title,
+          detail: warning.summary,
+          level: _riskLevelFromSeverity(warning.severityLabel),
+          icon: _iconForWarningText('${warning.title} ${warning.summary}'),
+          source: AlertSource.official,
+          sourceLabel: warning.sourceLabel,
+          link: warning.link,
+        ),
+      );
+    }
+
     final maxWind = max(report.today.maxWindKph, report.current.windGustKph);
     final maxHourlyRain = report.hourly.fold<double>(
       0,
@@ -450,6 +473,9 @@ class WeatherAdvisor {
       (value, slot) => min(value, slot.visibilityMeters),
     );
     final hasThunder = report.hourly.any((slot) => slot.weatherCode >= 95);
+    final hasSnow = report.hourly.any((slot) => _isSnowCode(slot.weatherCode));
+    final heatRisk = max(report.today.maxTempC, report.current.apparentTemperatureC) >= 28;
+    final frostRisk = report.today.minTempC <= 1 || report.current.apparentTemperatureC <= 0;
 
     if (maxWind >= 46) {
       risks.add(const RiskNote(
@@ -476,6 +502,15 @@ class WeatherAdvisor {
       ));
     }
 
+    if (hasSnow) {
+      risks.add(const RiskNote(
+        title: 'Snow or wintry risk',
+        detail: 'Wintry spells could make outdoor routes slippery and slower.',
+        level: RiskLevel.headsUp,
+        icon: Icons.ac_unit_rounded,
+      ));
+    }
+
     if (minVisibility <= 1500) {
       risks.add(const RiskNote(
         title: 'Reduced visibility',
@@ -494,6 +529,24 @@ class WeatherAdvisor {
       ));
     }
 
+    if (heatRisk) {
+      risks.add(const RiskNote(
+        title: 'Heat building later',
+        detail: 'Warmer conditions could make exposed outdoor plans more draining.',
+        level: RiskLevel.headsUp,
+        icon: Icons.thermostat_rounded,
+      ));
+    }
+
+    if (frostRisk) {
+      risks.add(const RiskNote(
+        title: 'Frosty start',
+        detail: 'A cold start could leave pavements, cars, or grass slick early on.',
+        level: RiskLevel.headsUp,
+        icon: Icons.severe_cold_rounded,
+      ));
+    }
+
     if (risks.isEmpty) {
       risks.add(const RiskNote(
         title: 'No major disruption flagged',
@@ -504,6 +557,65 @@ class WeatherAdvisor {
     }
 
     return risks;
+  }
+
+  List<HomeSummaryCard> _buildHomeCards(
+    WeatherReport report,
+    NextHourInsight nextHour,
+    DryWindowInsight dryWindow,
+    CommuteOverview commute,
+    String simpleSummary,
+  ) {
+    final currentDescriptor = describeWeatherCode(
+      report.current.weatherCode,
+      isDay: report.current.isDay,
+    );
+
+    final commuteTone = commute.windows.any((window) => window.tone == AdviceTone.wait)
+        ? AdviceTone.wait
+        : commute.windows.any((window) => window.tone == AdviceTone.watch)
+            ? AdviceTone.watch
+            : AdviceTone.go;
+
+    return <HomeSummaryCard>[
+      HomeSummaryCard(
+        title: 'Current weather',
+        value: '${formatTemperature(report.current.temperatureC)} ${currentDescriptor.label}',
+        detail: 'Feels like ${formatTemperature(report.current.apparentTemperatureC)}',
+        icon: currentDescriptor.icon,
+        tone: AdviceTone.go,
+      ),
+      HomeSummaryCard(
+        title: 'Next rain',
+        value: nextHour.title,
+        detail: nextHour.departureAdvice,
+        icon: Icons.umbrella_rounded,
+        tone: nextHour.tone,
+      ),
+      HomeSummaryCard(
+        title: 'Best dry slot',
+        value: dryWindow.headline,
+        detail: dryWindow.note,
+        icon: Icons.wb_sunny_outlined,
+        tone: dryWindow.tone,
+      ),
+      HomeSummaryCard(
+        title: 'Commute summary',
+        value: commute.windows.isEmpty ? 'No routines saved' : _commuteHeadline(commute),
+        detail: commute.summary,
+        icon: Icons.commute_rounded,
+        tone: commuteTone,
+      ),
+      HomeSummaryCard(
+        title: 'Daily advice',
+        value: simpleSummary,
+        detail: report.officialWarnings.isNotEmpty
+            ? '${report.officialWarnings.length} official warning${report.officialWarnings.length == 1 ? '' : 's'} available'
+            : 'No official warnings matched your location',
+        icon: Icons.chat_bubble_outline_rounded,
+        tone: report.officialWarnings.isNotEmpty ? AdviceTone.watch : AdviceTone.go,
+      ),
+    ];
   }
 
   String _buildSimpleSummary(
@@ -545,6 +657,10 @@ class WeatherAdvisor {
     return slot.precipitationProbability < 35 &&
         slot.precipitationMm < 0.15 &&
         slot.windSpeedKph < 32;
+  }
+
+  bool _isSnowCode(int code) {
+    return <int>{71, 73, 75, 77, 85, 86}.contains(code);
   }
 
   DateTime _nextOccurrence(DateTime now, int startMinutes, int endMinutes) {
@@ -613,6 +729,45 @@ class WeatherAdvisor {
     final hour = time.hour.toString().padLeft(2, '0');
     final minute = time.minute.toString().padLeft(2, '0');
     return '$hour:$minute';
+  }
+
+  String _commuteHeadline(CommuteOverview commute) {
+    final best = commute.windows.reduce((a, b) => a.score >= b.score ? a : b);
+    return '${best.label}: ${best.score}/100';
+  }
+
+  RiskLevel _riskLevelFromSeverity(String severityLabel) {
+    final lower = severityLabel.toLowerCase();
+    if (lower.contains('red') || lower.contains('amber')) {
+      return RiskLevel.high;
+    }
+    if (lower.contains('yellow')) {
+      return RiskLevel.headsUp;
+    }
+    return RiskLevel.headsUp;
+  }
+
+  IconData _iconForWarningText(String text) {
+    final lower = text.toLowerCase();
+    if (lower.contains('wind')) {
+      return Icons.air_rounded;
+    }
+    if (lower.contains('thunder')) {
+      return Icons.thunderstorm_rounded;
+    }
+    if (lower.contains('snow') || lower.contains('ice')) {
+      return Icons.ac_unit_rounded;
+    }
+    if (lower.contains('fog')) {
+      return Icons.dehaze_rounded;
+    }
+    if (lower.contains('heat')) {
+      return Icons.thermostat_rounded;
+    }
+    if (lower.contains('frost') || lower.contains('cold')) {
+      return Icons.severe_cold_rounded;
+    }
+    return Icons.warning_amber_rounded;
   }
 
   ActivityRecommendation _scoreWalking(_ActivityContext context) {
