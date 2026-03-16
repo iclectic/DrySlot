@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
+
+part 'weather_models.freezed.dart';
+part 'weather_models.g.dart';
 
 enum AdviceTone { go, watch, wait }
 
@@ -23,50 +27,27 @@ extension ExplanationModeX on ExplanationMode {
   };
 }
 
-class WeatherLocation {
-  const WeatherLocation({
-    required this.name,
-    required this.region,
-    required this.country,
-    required this.latitude,
-    required this.longitude,
-    required this.timezone,
-  });
+@freezed
+abstract class WeatherLocation with _$WeatherLocation {
+  const WeatherLocation._();
 
-  final String name;
-  final String region;
-  final String country;
-  final double latitude;
-  final double longitude;
-  final String timezone;
+  const factory WeatherLocation({
+    required String name,
+    required String region,
+    required String country,
+    required double latitude,
+    required double longitude,
+    required String timezone,
+  }) = _WeatherLocation;
+
+  factory WeatherLocation.fromJson(Map<String, dynamic> json) =>
+      _$WeatherLocationFromJson(json);
 
   String get subtitle {
     if (region.isEmpty || region == name) {
       return country;
     }
     return '$region, $country';
-  }
-
-  Map<String, Object> toJson() {
-    return <String, Object>{
-      'name': name,
-      'region': region,
-      'country': country,
-      'latitude': latitude,
-      'longitude': longitude,
-      'timezone': timezone,
-    };
-  }
-
-  factory WeatherLocation.fromJson(Map<String, dynamic> json) {
-    return WeatherLocation(
-      name: json['name'] as String? ?? 'Unknown',
-      region: json['region'] as String? ?? '',
-      country: json['country'] as String? ?? 'United Kingdom',
-      latitude: (json['latitude'] as num?)?.toDouble() ?? 0,
-      longitude: (json['longitude'] as num?)?.toDouble() ?? 0,
-      timezone: json['timezone'] as String? ?? 'Europe/London',
-    );
   }
 
   static const london = WeatherLocation(
@@ -147,52 +128,19 @@ class WeatherLocation {
   ];
 }
 
-class SavedCommuteWindow {
-  const SavedCommuteWindow({
-    required this.id,
-    required this.label,
-    required this.startMinutes,
-    required this.endMinutes,
-  });
+@freezed
+abstract class SavedCommuteWindow with _$SavedCommuteWindow {
+  const SavedCommuteWindow._();
 
-  final String id;
-  final String label;
-  final int startMinutes;
-  final int endMinutes;
+  const factory SavedCommuteWindow({
+    @Default('') String id,
+    @Default('Saved window') String label,
+    @Default(480) int startMinutes,
+    @Default(540) int endMinutes,
+  }) = _SavedCommuteWindow;
 
-  Map<String, Object> toJson() {
-    return <String, Object>{
-      'id': id,
-      'label': label,
-      'startMinutes': startMinutes,
-      'endMinutes': endMinutes,
-    };
-  }
-
-  factory SavedCommuteWindow.fromJson(Map<String, dynamic> json) {
-    return SavedCommuteWindow(
-      id:
-          json['id'] as String? ??
-          DateTime.now().millisecondsSinceEpoch.toString(),
-      label: json['label'] as String? ?? 'Saved window',
-      startMinutes: (json['startMinutes'] as num?)?.toInt() ?? 480,
-      endMinutes: (json['endMinutes'] as num?)?.toInt() ?? 540,
-    );
-  }
-
-  SavedCommuteWindow copyWith({
-    String? id,
-    String? label,
-    int? startMinutes,
-    int? endMinutes,
-  }) {
-    return SavedCommuteWindow(
-      id: id ?? this.id,
-      label: label ?? this.label,
-      startMinutes: startMinutes ?? this.startMinutes,
-      endMinutes: endMinutes ?? this.endMinutes,
-    );
-  }
+  factory SavedCommuteWindow.fromJson(Map<String, dynamic> json) =>
+      _$SavedCommuteWindowFromJson(json);
 
   static const defaults = <SavedCommuteWindow>[
     SavedCommuteWindow(
@@ -234,604 +182,258 @@ class SavedCommuteWindow {
   ];
 }
 
-class CurrentConditions {
-  const CurrentConditions({
-    required this.time,
-    required this.temperatureC,
-    required this.apparentTemperatureC,
-    required this.weatherCode,
-    required this.isDay,
-    required this.precipitationMm,
-    required this.rainMm,
-    required this.showersMm,
-    required this.cloudCover,
-    required this.windSpeedKph,
-    required this.windGustKph,
-    required this.visibilityMeters,
-  });
+@freezed
+abstract class CurrentConditions with _$CurrentConditions {
+  const factory CurrentConditions({
+    required DateTime time,
+    required double temperatureC,
+    required double apparentTemperatureC,
+    required int weatherCode,
+    required bool isDay,
+    required double precipitationMm,
+    required double rainMm,
+    required double showersMm,
+    required int cloudCover,
+    required double windSpeedKph,
+    required double windGustKph,
+    required double visibilityMeters,
+  }) = _CurrentConditions;
 
-  final DateTime time;
-  final double temperatureC;
-  final double apparentTemperatureC;
-  final int weatherCode;
-  final bool isDay;
-  final double precipitationMm;
-  final double rainMm;
-  final double showersMm;
-  final int cloudCover;
-  final double windSpeedKph;
-  final double windGustKph;
-  final double visibilityMeters;
-
-  Map<String, Object> toJson() {
-    return <String, Object>{
-      'time': time.toIso8601String(),
-      'temperatureC': temperatureC,
-      'apparentTemperatureC': apparentTemperatureC,
-      'weatherCode': weatherCode,
-      'isDay': isDay,
-      'precipitationMm': precipitationMm,
-      'rainMm': rainMm,
-      'showersMm': showersMm,
-      'cloudCover': cloudCover,
-      'windSpeedKph': windSpeedKph,
-      'windGustKph': windGustKph,
-      'visibilityMeters': visibilityMeters,
-    };
-  }
-
-  factory CurrentConditions.fromJson(Map<String, dynamic> json) {
-    return CurrentConditions(
-      time: _parseDateTime(json['time']),
-      temperatureC: _asDouble(json['temperatureC']),
-      apparentTemperatureC: _asDouble(json['apparentTemperatureC']),
-      weatherCode: _asInt(json['weatherCode']),
-      isDay: json['isDay'] as bool? ?? true,
-      precipitationMm: _asDouble(json['precipitationMm']),
-      rainMm: _asDouble(json['rainMm']),
-      showersMm: _asDouble(json['showersMm']),
-      cloudCover: _asInt(json['cloudCover']),
-      windSpeedKph: _asDouble(json['windSpeedKph']),
-      windGustKph: _asDouble(json['windGustKph']),
-      visibilityMeters: _asDouble(json['visibilityMeters'], fallback: 10000),
-    );
-  }
+  factory CurrentConditions.fromJson(Map<String, dynamic> json) =>
+      _$CurrentConditionsFromJson(json);
 }
 
-class MinuteForecast {
-  const MinuteForecast({
-    required this.time,
-    required this.precipitationMm,
-    required this.weatherCode,
-    required this.windSpeedKph,
-    required this.visibilityMeters,
-    required this.isDay,
-  });
+@freezed
+abstract class MinuteForecast with _$MinuteForecast {
+  const factory MinuteForecast({
+    required DateTime time,
+    required double precipitationMm,
+    required int weatherCode,
+    required double windSpeedKph,
+    required double visibilityMeters,
+    required bool isDay,
+  }) = _MinuteForecast;
 
-  final DateTime time;
-  final double precipitationMm;
-  final int weatherCode;
-  final double windSpeedKph;
-  final double visibilityMeters;
-  final bool isDay;
-
-  Map<String, Object> toJson() {
-    return <String, Object>{
-      'time': time.toIso8601String(),
-      'precipitationMm': precipitationMm,
-      'weatherCode': weatherCode,
-      'windSpeedKph': windSpeedKph,
-      'visibilityMeters': visibilityMeters,
-      'isDay': isDay,
-    };
-  }
-
-  factory MinuteForecast.fromJson(Map<String, dynamic> json) {
-    return MinuteForecast(
-      time: _parseDateTime(json['time']),
-      precipitationMm: _asDouble(json['precipitationMm']),
-      weatherCode: _asInt(json['weatherCode']),
-      windSpeedKph: _asDouble(json['windSpeedKph']),
-      visibilityMeters: _asDouble(json['visibilityMeters'], fallback: 10000),
-      isDay: json['isDay'] as bool? ?? true,
-    );
-  }
+  factory MinuteForecast.fromJson(Map<String, dynamic> json) =>
+      _$MinuteForecastFromJson(json);
 }
 
-class HourlyForecast {
-  const HourlyForecast({
-    required this.time,
-    required this.temperatureC,
-    required this.apparentTemperatureC,
-    required this.precipitationProbability,
-    required this.precipitationMm,
-    required this.weatherCode,
-    required this.windSpeedKph,
-    required this.windGustKph,
-    required this.visibilityMeters,
-    required this.cloudCover,
-    required this.uvIndex,
-    required this.isDay,
-  });
+@freezed
+abstract class HourlyForecast with _$HourlyForecast {
+  const factory HourlyForecast({
+    required DateTime time,
+    required double temperatureC,
+    required double apparentTemperatureC,
+    required int precipitationProbability,
+    required double precipitationMm,
+    required int weatherCode,
+    required double windSpeedKph,
+    required double windGustKph,
+    required double visibilityMeters,
+    required int cloudCover,
+    required double uvIndex,
+    required bool isDay,
+  }) = _HourlyForecast;
 
-  final DateTime time;
-  final double temperatureC;
-  final double apparentTemperatureC;
-  final int precipitationProbability;
-  final double precipitationMm;
-  final int weatherCode;
-  final double windSpeedKph;
-  final double windGustKph;
-  final double visibilityMeters;
-  final int cloudCover;
-  final double uvIndex;
-  final bool isDay;
-
-  Map<String, Object> toJson() {
-    return <String, Object>{
-      'time': time.toIso8601String(),
-      'temperatureC': temperatureC,
-      'apparentTemperatureC': apparentTemperatureC,
-      'precipitationProbability': precipitationProbability,
-      'precipitationMm': precipitationMm,
-      'weatherCode': weatherCode,
-      'windSpeedKph': windSpeedKph,
-      'windGustKph': windGustKph,
-      'visibilityMeters': visibilityMeters,
-      'cloudCover': cloudCover,
-      'uvIndex': uvIndex,
-      'isDay': isDay,
-    };
-  }
-
-  factory HourlyForecast.fromJson(Map<String, dynamic> json) {
-    return HourlyForecast(
-      time: _parseDateTime(json['time']),
-      temperatureC: _asDouble(json['temperatureC']),
-      apparentTemperatureC: _asDouble(json['apparentTemperatureC']),
-      precipitationProbability: _asInt(json['precipitationProbability']),
-      precipitationMm: _asDouble(json['precipitationMm']),
-      weatherCode: _asInt(json['weatherCode']),
-      windSpeedKph: _asDouble(json['windSpeedKph']),
-      windGustKph: _asDouble(json['windGustKph']),
-      visibilityMeters: _asDouble(json['visibilityMeters'], fallback: 10000),
-      cloudCover: _asInt(json['cloudCover']),
-      uvIndex: _asDouble(json['uvIndex']),
-      isDay: json['isDay'] as bool? ?? true,
-    );
-  }
+  factory HourlyForecast.fromJson(Map<String, dynamic> json) =>
+      _$HourlyForecastFromJson(json);
 }
 
-class DailyForecast {
-  const DailyForecast({
-    required this.date,
-    required this.weatherCode,
-    required this.maxTempC,
-    required this.minTempC,
-    required this.precipitationMm,
-    required this.precipitationProbabilityMax,
-    required this.maxWindKph,
-    required this.uvIndexMax,
-    required this.sunrise,
-    required this.sunset,
-  });
+@freezed
+abstract class DailyForecast with _$DailyForecast {
+  const factory DailyForecast({
+    required DateTime date,
+    required int weatherCode,
+    required double maxTempC,
+    required double minTempC,
+    required double precipitationMm,
+    required int precipitationProbabilityMax,
+    required double maxWindKph,
+    required double uvIndexMax,
+    required DateTime sunrise,
+    required DateTime sunset,
+  }) = _DailyForecast;
 
-  final DateTime date;
-  final int weatherCode;
-  final double maxTempC;
-  final double minTempC;
-  final double precipitationMm;
-  final int precipitationProbabilityMax;
-  final double maxWindKph;
-  final double uvIndexMax;
-  final DateTime sunrise;
-  final DateTime sunset;
-
-  Map<String, Object> toJson() {
-    return <String, Object>{
-      'date': date.toIso8601String(),
-      'weatherCode': weatherCode,
-      'maxTempC': maxTempC,
-      'minTempC': minTempC,
-      'precipitationMm': precipitationMm,
-      'precipitationProbabilityMax': precipitationProbabilityMax,
-      'maxWindKph': maxWindKph,
-      'uvIndexMax': uvIndexMax,
-      'sunrise': sunrise.toIso8601String(),
-      'sunset': sunset.toIso8601String(),
-    };
-  }
-
-  factory DailyForecast.fromJson(Map<String, dynamic> json) {
-    return DailyForecast(
-      date: _parseDateTime(json['date']),
-      weatherCode: _asInt(json['weatherCode']),
-      maxTempC: _asDouble(json['maxTempC']),
-      minTempC: _asDouble(json['minTempC']),
-      precipitationMm: _asDouble(json['precipitationMm']),
-      precipitationProbabilityMax: _asInt(json['precipitationProbabilityMax']),
-      maxWindKph: _asDouble(json['maxWindKph']),
-      uvIndexMax: _asDouble(json['uvIndexMax']),
-      sunrise: _parseDateTime(json['sunrise']),
-      sunset: _parseDateTime(json['sunset']),
-    );
-  }
+  factory DailyForecast.fromJson(Map<String, dynamic> json) =>
+      _$DailyForecastFromJson(json);
 }
 
-class WeatherReport {
-  const WeatherReport({
-    required this.location,
-    required this.fetchedAt,
-    required this.current,
-    required this.minutely,
-    required this.hourly,
-    required this.today,
-    required this.daily,
-    required this.usingFallback,
-    required this.sourceLabel,
-    this.officialWarnings = const <OfficialWarning>[],
-    this.sourceNote,
-  });
+@freezed
+abstract class OfficialWarning with _$OfficialWarning {
+  const factory OfficialWarning({
+    required String title,
+    required String summary,
+    required String severityLabel,
+    required String sourceLabel,
+    String? link,
+  }) = _OfficialWarning;
 
-  final WeatherLocation location;
-  final DateTime fetchedAt;
-  final CurrentConditions current;
-  final List<MinuteForecast> minutely;
-  final List<HourlyForecast> hourly;
-  final DailyForecast today;
-  final List<DailyForecast> daily;
-  final bool usingFallback;
-  final String sourceLabel;
-  final List<OfficialWarning> officialWarnings;
-  final String? sourceNote;
+  factory OfficialWarning.fromJson(Map<String, dynamic> json) =>
+      _$OfficialWarningFromJson(json);
+}
 
-  WeatherReport copyWith({
-    WeatherLocation? location,
-    DateTime? fetchedAt,
-    CurrentConditions? current,
-    List<MinuteForecast>? minutely,
-    List<HourlyForecast>? hourly,
-    DailyForecast? today,
-    List<DailyForecast>? daily,
-    bool? usingFallback,
-    String? sourceLabel,
-    List<OfficialWarning>? officialWarnings,
+@freezed
+abstract class WeatherReport with _$WeatherReport {
+  const factory WeatherReport({
+    required WeatherLocation location,
+    required DateTime fetchedAt,
+    required CurrentConditions current,
+    required List<MinuteForecast> minutely,
+    required List<HourlyForecast> hourly,
+    required DailyForecast today,
+    required List<DailyForecast> daily,
+    required bool usingFallback,
+    required String sourceLabel,
+    @Default(<OfficialWarning>[]) List<OfficialWarning> officialWarnings,
     String? sourceNote,
-  }) {
-    return WeatherReport(
-      location: location ?? this.location,
-      fetchedAt: fetchedAt ?? this.fetchedAt,
-      current: current ?? this.current,
-      minutely: minutely ?? this.minutely,
-      hourly: hourly ?? this.hourly,
-      today: today ?? this.today,
-      daily: daily ?? this.daily,
-      usingFallback: usingFallback ?? this.usingFallback,
-      sourceLabel: sourceLabel ?? this.sourceLabel,
-      officialWarnings: officialWarnings ?? this.officialWarnings,
-      sourceNote: sourceNote ?? this.sourceNote,
-    );
-  }
+  }) = _WeatherReport;
 
-  Map<String, Object?> toJson() {
-    return <String, Object?>{
-      'location': location.toJson(),
-      'fetchedAt': fetchedAt.toIso8601String(),
-      'current': current.toJson(),
-      'minutely': minutely.map((slot) => slot.toJson()).toList(growable: false),
-      'hourly': hourly.map((slot) => slot.toJson()).toList(growable: false),
-      'today': today.toJson(),
-      'daily': daily.map((day) => day.toJson()).toList(growable: false),
-      'usingFallback': usingFallback,
-      'sourceLabel': sourceLabel,
-      'officialWarnings': officialWarnings
-          .map((warning) => warning.toJson())
-          .toList(growable: false),
-      'sourceNote': sourceNote,
-    };
-  }
-
-  factory WeatherReport.fromJson(Map<String, dynamic> json) {
-    return WeatherReport(
-      location: WeatherLocation.fromJson(
-        (json['location'] as Map<Object?, Object?>?)?.cast<String, dynamic>() ??
-            <String, dynamic>{},
-      ),
-      fetchedAt: _parseDateTime(json['fetchedAt']),
-      current: CurrentConditions.fromJson(
-        (json['current'] as Map<Object?, Object?>?)?.cast<String, dynamic>() ??
-            <String, dynamic>{},
-      ),
-      minutely: _mapList(json['minutely'], MinuteForecast.fromJson),
-      hourly: _mapList(json['hourly'], HourlyForecast.fromJson),
-      today: DailyForecast.fromJson(
-        (json['today'] as Map<Object?, Object?>?)?.cast<String, dynamic>() ??
-            <String, dynamic>{},
-      ),
-      daily: _mapList(json['daily'], DailyForecast.fromJson),
-      usingFallback: json['usingFallback'] as bool? ?? false,
-      sourceLabel: json['sourceLabel'] as String? ?? 'Saved forecast',
-      officialWarnings: _mapList(
-        json['officialWarnings'],
-        OfficialWarning.fromJson,
-      ),
-      sourceNote: json['sourceNote'] as String?,
-    );
-  }
+  factory WeatherReport.fromJson(Map<String, dynamic> json) =>
+      _$WeatherReportFromJson(json);
 }
 
-class OfficialWarning {
-  const OfficialWarning({
-    required this.title,
-    required this.summary,
-    required this.severityLabel,
-    required this.sourceLabel,
-    this.link,
-  });
-
-  final String title;
-  final String summary;
-  final String severityLabel;
-  final String sourceLabel;
-  final String? link;
-
-  Map<String, Object?> toJson() {
-    return <String, Object?>{
-      'title': title,
-      'summary': summary,
-      'severityLabel': severityLabel,
-      'sourceLabel': sourceLabel,
-      'link': link,
-    };
-  }
-
-  factory OfficialWarning.fromJson(Map<String, dynamic> json) {
-    return OfficialWarning(
-      title: json['title'] as String? ?? '',
-      summary: json['summary'] as String? ?? '',
-      severityLabel: json['severityLabel'] as String? ?? 'Official warning',
-      sourceLabel:
-          json['sourceLabel'] as String? ?? 'Met Office official warning',
-      link: json['link'] as String?,
-    );
-  }
+@freezed
+abstract class GuidanceHeadline with _$GuidanceHeadline {
+  const factory GuidanceHeadline({
+    required String title,
+    required String detail,
+    required AdviceTone tone,
+    required String callToAction,
+  }) = _GuidanceHeadline;
 }
 
-class GuidanceHeadline {
-  const GuidanceHeadline({
-    required this.title,
-    required this.detail,
-    required this.tone,
-    required this.callToAction,
-  });
-
-  final String title;
-  final String detail;
-  final AdviceTone tone;
-  final String callToAction;
+@freezed
+abstract class NextHourInsight with _$NextHourInsight {
+  const factory NextHourInsight({
+    required String title,
+    required String detail,
+    required String departureAdvice,
+    required AdviceTone tone,
+    required double maxPrecipitationMm,
+    int? minutesUntilRain,
+  }) = _NextHourInsight;
 }
 
-class NextHourInsight {
-  const NextHourInsight({
-    required this.title,
-    required this.detail,
-    required this.departureAdvice,
-    required this.tone,
-    required this.maxPrecipitationMm,
-    this.minutesUntilRain,
-  });
-
-  final String title;
-  final String detail;
-  final String departureAdvice;
-  final AdviceTone tone;
-  final double maxPrecipitationMm;
-  final int? minutesUntilRain;
+@freezed
+abstract class DryWindowInsight with _$DryWindowInsight {
+  const factory DryWindowInsight({
+    required String headline,
+    required bool isAvailable,
+    required DateTime? start,
+    required DateTime? end,
+    required Duration duration,
+    required String note,
+    required String confidenceLabel,
+    required AdviceTone tone,
+  }) = _DryWindowInsight;
 }
 
-class DryWindowInsight {
-  const DryWindowInsight({
-    required this.headline,
-    required this.isAvailable,
-    required this.start,
-    required this.end,
-    required this.duration,
-    required this.note,
-    required this.confidenceLabel,
-    required this.tone,
-  });
-
-  final String headline;
-  final bool isAvailable;
-  final DateTime? start;
-  final DateTime? end;
-  final Duration duration;
-  final String note;
-  final String confidenceLabel;
-  final AdviceTone tone;
+@freezed
+abstract class CommuteLeg with _$CommuteLeg {
+  const factory CommuteLeg({
+    required String id,
+    required String label,
+    required DateTime start,
+    required DateTime end,
+    required AdviceTone tone,
+    required String detail,
+    required String summary,
+    required int score,
+  }) = _CommuteLeg;
 }
 
-class CommuteLeg {
-  const CommuteLeg({
-    required this.id,
-    required this.label,
-    required this.start,
-    required this.end,
-    required this.tone,
-    required this.detail,
-    required this.summary,
-    required this.score,
-  });
-
-  final String id;
-  final String label;
-  final DateTime start;
-  final DateTime end;
-  final AdviceTone tone;
-  final String detail;
-  final String summary;
-  final int score;
+@freezed
+abstract class CommuteOverview with _$CommuteOverview {
+  const factory CommuteOverview({
+    required List<CommuteLeg> windows,
+    required String summary,
+  }) = _CommuteOverview;
 }
 
-class CommuteOverview {
-  const CommuteOverview({required this.windows, required this.summary});
-
-  final List<CommuteLeg> windows;
-  final String summary;
+@freezed
+abstract class WearTip with _$WearTip {
+  const factory WearTip({
+    required String title,
+    required String detail,
+    required IconData icon,
+  }) = _WearTip;
 }
 
-class WearTip {
-  const WearTip({
-    required this.title,
-    required this.detail,
-    required this.icon,
-  });
-
-  final String title;
-  final String detail;
-  final IconData icon;
+@freezed
+abstract class ActivityRecommendation with _$ActivityRecommendation {
+  const factory ActivityRecommendation({
+    required String name,
+    required int score,
+    required String detail,
+    required ActivitySuitability suitability,
+    required IconData icon,
+  }) = _ActivityRecommendation;
 }
 
-class ActivityRecommendation {
-  const ActivityRecommendation({
-    required this.name,
-    required this.score,
-    required this.detail,
-    required this.suitability,
-    required this.icon,
-  });
-
-  final String name;
-  final int score;
-  final String detail;
-  final ActivitySuitability suitability;
-  final IconData icon;
+@freezed
+abstract class RiskNote with _$RiskNote {
+  const factory RiskNote({
+    required String title,
+    required String detail,
+    required RiskLevel level,
+    required IconData icon,
+    @Default(AlertSource.forecast) AlertSource source,
+    @Default('Forecast signal') String sourceLabel,
+    String? link,
+  }) = _RiskNote;
 }
 
-class RiskNote {
-  const RiskNote({
-    required this.title,
-    required this.detail,
-    required this.level,
-    required this.icon,
-    this.source = AlertSource.forecast,
-    this.sourceLabel = 'Forecast signal',
-    this.link,
-  });
-
-  final String title;
-  final String detail;
-  final RiskLevel level;
-  final IconData icon;
-  final AlertSource source;
-  final String sourceLabel;
-  final String? link;
+@freezed
+abstract class HomeSummaryCard with _$HomeSummaryCard {
+  const factory HomeSummaryCard({
+    required String title,
+    required String value,
+    required String detail,
+    required IconData icon,
+    required AdviceTone tone,
+  }) = _HomeSummaryCard;
 }
 
-class HomeSummaryCard {
-  const HomeSummaryCard({
-    required this.title,
-    required this.value,
-    required this.detail,
-    required this.icon,
-    required this.tone,
-  });
-
-  final String title;
-  final String value;
-  final String detail;
-  final IconData icon;
-  final AdviceTone tone;
+@freezed
+abstract class WeekendDayPlan with _$WeekendDayPlan {
+  const factory WeekendDayPlan({
+    required String label,
+    required DateTime date,
+    required String summary,
+    required String headline,
+    required double maxTempC,
+    required double minTempC,
+    required double precipitationMm,
+    required int precipitationProbabilityMax,
+    required double maxWindKph,
+    required IconData icon,
+    required AdviceTone tone,
+  }) = _WeekendDayPlan;
 }
 
-class WeekendDayPlan {
-  const WeekendDayPlan({
-    required this.label,
-    required this.date,
-    required this.summary,
-    required this.headline,
-    required this.maxTempC,
-    required this.minTempC,
-    required this.precipitationMm,
-    required this.precipitationProbabilityMax,
-    required this.maxWindKph,
-    required this.icon,
-    required this.tone,
-  });
-
-  final String label;
-  final DateTime date;
-  final String summary;
-  final String headline;
-  final double maxTempC;
-  final double minTempC;
-  final double precipitationMm;
-  final int precipitationProbabilityMax;
-  final double maxWindKph;
-  final IconData icon;
-  final AdviceTone tone;
+@freezed
+abstract class WeekendPlanner with _$WeekendPlanner {
+  const factory WeekendPlanner({
+    required String title,
+    required String summary,
+    required List<WeekendDayPlan> days,
+    required AdviceTone tone,
+  }) = _WeekendPlanner;
 }
 
-class WeekendPlanner {
-  const WeekendPlanner({
-    required this.title,
-    required this.summary,
-    required this.days,
-    required this.tone,
-  });
-
-  final String title;
-  final String summary;
-  final List<WeekendDayPlan> days;
-  final AdviceTone tone;
-}
-
-class WeatherGuidance {
-  const WeatherGuidance({
-    required this.headline,
-    required this.nextHour,
-    required this.dryWindow,
-    required this.commute,
-    required this.wearTips,
-    required this.activities,
-    required this.risks,
-    required this.simpleSummary,
-    required this.highlightHours,
-    required this.homeCards,
-    required this.weekendPlanner,
-  });
-
-  final GuidanceHeadline headline;
-  final NextHourInsight nextHour;
-  final DryWindowInsight dryWindow;
-  final CommuteOverview commute;
-  final List<WearTip> wearTips;
-  final List<ActivityRecommendation> activities;
-  final List<RiskNote> risks;
-  final String simpleSummary;
-  final List<HourlyForecast> highlightHours;
-  final List<HomeSummaryCard> homeCards;
-  final WeekendPlanner? weekendPlanner;
-}
-
-double _asDouble(dynamic value, {double fallback = 0}) {
-  return (value as num?)?.toDouble() ?? fallback;
-}
-
-int _asInt(dynamic value) {
-  return (value as num?)?.toInt() ?? 0;
-}
-
-DateTime _parseDateTime(dynamic value) {
-  return DateTime.tryParse(value?.toString() ?? '') ?? DateTime.now();
-}
-
-List<T> _mapList<T>(
-  dynamic value,
-  T Function(Map<String, dynamic> json) builder,
-) {
-  return (value as List<dynamic>? ?? const <dynamic>[])
-      .whereType<Map>()
-      .map((entry) => builder(entry.cast<String, dynamic>()))
-      .toList(growable: false);
+@freezed
+abstract class WeatherGuidance with _$WeatherGuidance {
+  const factory WeatherGuidance({
+    required GuidanceHeadline headline,
+    required NextHourInsight nextHour,
+    required DryWindowInsight dryWindow,
+    required CommuteOverview commute,
+    required List<WearTip> wearTips,
+    required List<ActivityRecommendation> activities,
+    required List<RiskNote> risks,
+    required String simpleSummary,
+    required List<HourlyForecast> highlightHours,
+    required List<HomeSummaryCard> homeCards,
+    required WeekendPlanner? weekendPlanner,
+  }) = _WeatherGuidance;
 }
