@@ -33,8 +33,8 @@ String formatClock(DateTime time) {
   final hour = time.hour == 0
       ? 12
       : time.hour > 12
-          ? time.hour - 12
-          : time.hour;
+      ? time.hour - 12
+      : time.hour;
   final suffix = time.hour >= 12 ? 'pm' : 'am';
   final minute = time.minute.toString().padLeft(2, '0');
   return '$hour:$minute $suffix';

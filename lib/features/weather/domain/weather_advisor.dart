@@ -19,11 +19,24 @@ class WeatherAdvisor {
 
     final baseNextHour = _buildNextHourInsight(report);
     final baseDryWindow = _findBestDryWindow(report.hourly);
-    final baseCommute = _buildCommute(report.hourly, report.fetchedAt, commuteWindows);
+    final baseCommute = _buildCommute(
+      report.hourly,
+      report.fetchedAt,
+      commuteWindows,
+    );
     final baseRisks = _buildRisks(report);
     final baseWearTips = _buildWearTips(report, baseNextHour);
-    final baseActivities = _buildActivities(report, baseDryWindow, baseNextHour);
-    final baseHeadline = _buildHeadline(report, baseNextHour, baseDryWindow, baseRisks);
+    final baseActivities = _buildActivities(
+      report,
+      baseDryWindow,
+      baseNextHour,
+    );
+    final baseHeadline = _buildHeadline(
+      report,
+      baseNextHour,
+      baseDryWindow,
+      baseRisks,
+    );
     final baseSimpleSummary = _buildSimpleSummary(
       report,
       baseNextHour,
@@ -96,17 +109,21 @@ class WeatherAdvisor {
     }
 
     final now = report.fetchedAt;
-    final firstRain = slots.where((slot) => slot.precipitationMm >= 0.08).firstOrNull;
+    final firstRain = slots
+        .where((slot) => slot.precipitationMm >= 0.08)
+        .firstOrNull;
     final maxPrecipitation = slots.fold<double>(
       0,
       (value, slot) => max(value, slot.precipitationMm),
     );
-    final rainingNow = report.current.precipitationMm >= 0.08 || slots.first.precipitationMm >= 0.08;
+    final rainingNow =
+        report.current.precipitationMm >= 0.08 ||
+        slots.first.precipitationMm >= 0.08;
 
     if (firstRain == null && !rainingNow) {
       return const NextHourInsight(
         title: 'Dry for the next hour',
-        detail: 'You have a clean slot to head out without rushing.',
+        detail: 'Dry for a while yet, so you can head out without rushing.',
         departureAdvice: 'Safe to head out now',
         tone: AdviceTone.go,
         maxPrecipitationMm: 0,
@@ -116,12 +133,16 @@ class WeatherAdvisor {
     if (rainingNow) {
       final tone = maxPrecipitation >= 0.8 ? AdviceTone.wait : AdviceTone.watch;
       final detail = maxPrecipitation >= 0.8
-          ? 'Rain is already in and could stay punchy for a while.'
-          : 'There is wet weather around right now, but it should stay light.';
+          ? 'Rain is already in and could stay lively for a bit.'
+          : 'There is rain about right now, though it should stay fairly light.';
       return NextHourInsight(
-        title: maxPrecipitation >= 0.8 ? 'Wet right now' : 'Light rain is hovering',
+        title: maxPrecipitation >= 0.8
+            ? 'Wet right now'
+            : 'Light rain is hovering',
         detail: detail,
-        departureAdvice: tone == AdviceTone.wait ? 'Wait it out if you can' : 'Go only with a waterproof',
+        departureAdvice: tone == AdviceTone.wait
+            ? 'Wait it out if you can'
+            : 'Go only with a waterproof',
         tone: tone,
         maxPrecipitationMm: maxPrecipitation,
         minutesUntilRain: 0,
@@ -144,7 +165,8 @@ class WeatherAdvisor {
 
     return NextHourInsight(
       title: 'You have time before rain',
-      detail: 'It looks dry for roughly $minutesUntilRain minutes, then $intensity may arrive.',
+      detail:
+          'Dry for roughly $minutesUntilRain minutes, then $intensity may move in.',
       departureAdvice: 'A good moment to leave now',
       tone: AdviceTone.go,
       maxPrecipitationMm: maxPrecipitation,
@@ -170,8 +192,8 @@ class WeatherAdvisor {
     final afternoon = candidates
         .where((slot) => slot.time.hour >= 12 && slot.time.hour < 18)
         .toList(growable: false);
-    final afternoonLooksWet = afternoon.length >= 4 &&
-        afternoon.every((slot) => !_isDryEnough(slot));
+    final afternoonLooksWet =
+        afternoon.length >= 4 && afternoon.every((slot) => !_isDryEnough(slot));
 
     List<HourlyForecast> currentRun = <HourlyForecast>[];
     List<HourlyForecast> bestRun = <HourlyForecast>[];
@@ -195,7 +217,8 @@ class WeatherAdvisor {
           start: null,
           end: null,
           duration: Duration.zero,
-          note: 'The middle of the day looks unsettled, so outdoor plans stay awkward.',
+          note:
+              'The middle of the day looks unsettled, so longer outdoor plans may be awkward.',
           confidenceLabel: 'Low confidence',
           tone: AdviceTone.wait,
         );
@@ -212,7 +235,8 @@ class WeatherAdvisor {
         start: start,
         end: end,
         duration: const Duration(hours: 1),
-        note: 'Only a brief usable gap stands out, so keep plans tight and practical.',
+        note:
+            'Only a brief useful gap stands out, so keep plans tight and practical.',
         confidenceLabel: 'Low confidence',
         tone: AdviceTone.watch,
       );
@@ -221,21 +245,25 @@ class WeatherAdvisor {
     final start = bestRun.first.time;
     final end = bestRun.last.time.add(const Duration(hours: 1));
     final duration = end.difference(start);
-    final averageProbability = bestRun.fold<int>(
+    final averageProbability =
+        bestRun.fold<int>(
           0,
           (sum, slot) => sum + slot.precipitationProbability,
         ) /
         bestRun.length;
-    final confidence = averageProbability < 18 ? 'High confidence' : 'Reasonable confidence';
+    final confidence = averageProbability < 18
+        ? 'High confidence'
+        : 'Reasonable confidence';
     final isShortWindow = duration.inMinutes <= 75;
     final note = duration.inHours >= 3
-        ? 'This is your clearest part of the day for errands, walks, or outdoor jobs.'
+        ? 'This looks like the clearest part of the day for errands, walks, or outdoor jobs.'
         : duration.inHours >= 2
-            ? 'A practical block for the school run, errands, or a walk.'
-            : 'A short but usable gap if you keep things moving.';
+        ? 'A practical window for the school run, errands, or a walk.'
+        : 'A short but usable gap if you keep things moving.';
 
     return DryWindowInsight(
-      headline: '${isShortWindow ? 'Short' : 'Best'} dry slot: ${_clock(start)} to ${_clock(end)}',
+      headline:
+          '${isShortWindow ? 'Short' : 'Best'} dry slot: ${_clock(start)} to ${_clock(end)}',
       isAvailable: true,
       start: start,
       end: end,
@@ -251,23 +279,26 @@ class WeatherAdvisor {
     DateTime now,
     List<SavedCommuteWindow> commuteWindows,
   ) {
-    final templates = commuteWindows.isEmpty ? SavedCommuteWindow.defaults : commuteWindows;
+    final templates = commuteWindows.isEmpty
+        ? SavedCommuteWindow.defaults
+        : commuteWindows;
     final windows = templates
         .map((template) => _scoreWindow(hourly, now, template))
         .toList(growable: false);
-    final roughCount = windows.where((window) => window.tone == AdviceTone.wait).length;
-    final helpfulCount = windows.where((window) => window.tone == AdviceTone.go).length;
+    final roughCount = windows
+        .where((window) => window.tone == AdviceTone.wait)
+        .length;
+    final helpfulCount = windows
+        .where((window) => window.tone == AdviceTone.go)
+        .length;
 
     final summary = roughCount > 0
-        ? '$roughCount favourite ${roughCount == 1 ? 'routine looks' : 'routines look'} rough, so plan around them.'
+        ? '$roughCount saved ${roughCount == 1 ? 'routine looks' : 'routines look'} tricky today, so plan around them.'
         : helpfulCount == windows.length
-            ? 'Your favourite routines look manageable today.'
-            : 'A mixed picture across your favourite routines.';
+        ? 'Your saved routines look straightforward today.'
+        : 'Some routines look fine, but a few may need timing.';
 
-    return CommuteOverview(
-      windows: windows,
-      summary: summary,
-    );
+    return CommuteOverview(windows: windows, summary: summary);
   }
 
   CommuteLeg _scoreWindow(
@@ -275,8 +306,16 @@ class WeatherAdvisor {
     DateTime now,
     SavedCommuteWindow template,
   ) {
-    final start = _nextOccurrence(now, template.startMinutes, template.endMinutes);
-    final end = _endForOccurrence(start, template.startMinutes, template.endMinutes);
+    final start = _nextOccurrence(
+      now,
+      template.startMinutes,
+      template.endMinutes,
+    );
+    final end = _endForOccurrence(
+      start,
+      template.startMinutes,
+      template.endMinutes,
+    );
     final slots = hourly
         .where((slot) => !slot.time.isBefore(start) && slot.time.isBefore(end))
         .toList(growable: false);
@@ -288,15 +327,23 @@ class WeatherAdvisor {
         start: start,
         end: end,
         tone: AdviceTone.watch,
-        detail: 'No forecast is available for this saved time window yet.',
+        detail: 'No forecast is available for this saved routine yet.',
         summary: 'Forecast unavailable',
         score: 50,
       );
     }
 
-    final avgRainChance = slots.fold<int>(0, (sum, slot) => sum + slot.precipitationProbability) / slots.length;
-    final maxRain = slots.fold<double>(0, (value, slot) => max(value, slot.precipitationMm));
-    final maxWind = slots.fold<double>(0, (value, slot) => max(value, slot.windSpeedKph));
+    final avgRainChance =
+        slots.fold<int>(0, (sum, slot) => sum + slot.precipitationProbability) /
+        slots.length;
+    final maxRain = slots.fold<double>(
+      0,
+      (value, slot) => max(value, slot.precipitationMm),
+    );
+    final maxWind = slots.fold<double>(
+      0,
+      (value, slot) => max(value, slot.windSpeedKph),
+    );
     final minVisibility = slots.fold<double>(
       double.infinity,
       (value, slot) => min(value, slot.visibilityMeters),
@@ -304,7 +351,11 @@ class WeatherAdvisor {
 
     final rainPenalty = avgRainChance * 0.35 + maxRain * 28;
     final windPenalty = max(0, maxWind - 18) * 1.6;
-    final visibilityPenalty = minVisibility < 2500 ? 18 : minVisibility < 6000 ? 9 : 0;
+    final visibilityPenalty = minVisibility < 2500
+        ? 18
+        : minVisibility < 6000
+        ? 9
+        : 0;
     final rawScore = (100 - rainPenalty - windPenalty - visibilityPenalty)
         .round()
         .clamp(15, 98);
@@ -314,15 +365,15 @@ class WeatherAdvisor {
     String detail;
     if (rawScore >= 75) {
       tone = AdviceTone.go;
-      summary = 'Mostly smooth';
-      detail = 'Mostly dry with manageable wind and visibility.';
+      summary = 'Good window';
+      detail = 'Mostly dry, with wind and visibility looking manageable.';
     } else if (rawScore >= 55) {
       tone = AdviceTone.watch;
-      summary = 'Changeable';
-      detail = 'Usable, but expect some wet, breezy, or murky patches.';
+      summary = 'A bit mixed';
+      detail = 'Usable, but expect a few wet, breezy, or murky patches.';
     } else {
       tone = AdviceTone.wait;
-      summary = 'Rough going';
+      summary = 'Tricky spell';
       detail = 'Rain, wind, or poor visibility could make this window awkward.';
     }
 
@@ -347,42 +398,46 @@ class WeatherAdvisor {
     final severeRisk = risks.any((risk) => risk.level == RiskLevel.high);
     if (severeRisk) {
       return GuidanceHeadline(
-        title: 'Keep plans flexible today',
+        title: 'Keep a backup plan today',
         detail: risks.first.detail,
         tone: AdviceTone.wait,
-        callToAction: 'Stay weather-aware',
+        callToAction: 'Keep an eye on alerts',
       );
     }
 
-    if (nextHour.tone == AdviceTone.go && dryWindow.isAvailable && dryWindow.duration.inHours >= 2) {
+    if (nextHour.tone == AdviceTone.go &&
+        dryWindow.isAvailable &&
+        dryWindow.duration.inHours >= 2) {
       return GuidanceHeadline(
-        title: 'Good day for outdoor jobs',
-        detail: 'There is a clean start now and a reliable dry block later on.',
+        title: 'A good day to get out',
+        detail: 'It starts well and there is a useful dry window later on.',
         tone: AdviceTone.go,
-        callToAction: 'Use the dry slot',
+        callToAction: 'Use the best dry slot',
       );
     }
 
-    if (nextHour.tone == AdviceTone.wait && dryWindow.isAvailable && dryWindow.start != null) {
+    if (nextHour.tone == AdviceTone.wait &&
+        dryWindow.isAvailable &&
+        dryWindow.start != null) {
       return GuidanceHeadline(
-        title: 'Hold off, then move later',
-        detail: 'The best slot comes after the current wet patch clears.',
+        title: 'Wait a bit, then head out',
+        detail: 'The better window comes after the current wet patch clears.',
         tone: AdviceTone.watch,
-        callToAction: 'Wait for the next dry gap',
+        callToAction: 'Wait for the dry gap',
       );
     }
 
     if (report.today.precipitationProbabilityMax >= 70) {
       return GuidanceHeadline(
-        title: 'Plan around passing rain',
-        detail: 'Today looks changeable, so time your outdoor plans carefully.',
+        title: 'Plan around the showers',
+        detail: 'There are usable gaps today, but timing will matter.',
         tone: AdviceTone.watch,
         callToAction: nextHour.departureAdvice,
       );
     }
 
     return GuidanceHeadline(
-      title: 'A calm, usable weather day',
+      title: 'A steady day for getting things done',
       detail: 'Nothing too disruptive stands out if you time things sensibly.',
       tone: AdviceTone.go,
       callToAction: nextHour.departureAdvice,
@@ -393,72 +448,95 @@ class WeatherAdvisor {
     final tips = <WearTip>[];
 
     final rainLikely =
-        nextHour.maxPrecipitationMm >= 0.08 || report.today.precipitationProbabilityMax >= 50;
+        nextHour.maxPrecipitationMm >= 0.08 ||
+        report.today.precipitationProbabilityMax >= 50;
     final windy = report.today.maxWindKph >= 28;
     final chillyNow = report.current.apparentTemperatureC <= 8;
-    final warmingLater = report.fetchedAt.hour < 11 &&
+    final warmingLater =
+        report.fetchedAt.hour < 11 &&
         report.today.maxTempC - report.current.apparentTemperatureC >= 5;
 
     if (rainLikely) {
       if (windy) {
-        tips.add(const WearTip(
-          title: 'Take a light waterproof',
-          detail: 'Showers and gusts will favour a jacket over an umbrella.',
-          icon: Icons.umbrella_rounded,
-        ));
+        tips.add(
+          const WearTip(
+            title: 'Take a light waterproof',
+            detail: 'Showers and gusts will favour a jacket over an umbrella.',
+            icon: Icons.umbrella_rounded,
+          ),
+        );
       } else {
-        tips.add(const WearTip(
-          title: 'Umbrella recommended',
-          detail: 'Rain risk is high enough that it is worth taking one.',
-          icon: Icons.umbrella_rounded,
-        ));
+        tips.add(
+          const WearTip(
+            title: 'Umbrella recommended',
+            detail: 'Rain risk is high enough that it is worth taking one.',
+            icon: Icons.umbrella_rounded,
+          ),
+        );
       }
     }
 
     if (report.current.apparentTemperatureC >= 10 &&
         report.current.apparentTemperatureC <= 17 &&
         windy) {
-      tips.add(const WearTip(
-        title: 'Mild, but windy',
-        detail: 'You will not need heavy layers, but gusts could cut through light clothing.',
-        icon: Icons.air_rounded,
-      ));
+      tips.add(
+        const WearTip(
+          title: 'Mild, but windy',
+          detail:
+              'You will not need heavy layers, but gusts could cut through light clothing.',
+          icon: Icons.air_rounded,
+        ),
+      );
     }
 
     if (chillyNow && warmingLater) {
-      tips.add(const WearTip(
-        title: 'Cold start, warmer by noon',
-        detail: 'Start with a jacket or jumper that you can take off later.',
-        icon: Icons.wb_twilight_rounded,
-      ));
-    } else if (report.current.apparentTemperatureC <= 5 || report.today.minTempC <= 3) {
-      tips.add(const WearTip(
-        title: 'Wrap up well',
-        detail: 'It feels cold enough for proper layers, especially early or in exposed spots.',
-        icon: Icons.layers_rounded,
-      ));
+      tips.add(
+        const WearTip(
+          title: 'Cold start, warmer by noon',
+          detail: 'Start with a jacket or jumper that you can take off later.',
+          icon: Icons.wb_twilight_rounded,
+        ),
+      );
+    } else if (report.current.apparentTemperatureC <= 5 ||
+        report.today.minTempC <= 3) {
+      tips.add(
+        const WearTip(
+          title: 'Wrap up well',
+          detail:
+              'It feels cold enough for proper layers, especially early or in exposed spots.',
+          icon: Icons.layers_rounded,
+        ),
+      );
     } else if (report.current.apparentTemperatureC <= 13) {
-      tips.add(const WearTip(
-        title: 'Take a light layer',
-        detail: 'A jumper or light jacket should be enough for most of the day.',
-        icon: Icons.checkroom_rounded,
-      ));
+      tips.add(
+        const WearTip(
+          title: 'Take a light layer',
+          detail:
+              'A jumper or light jacket should be enough for most of the day.',
+          icon: Icons.checkroom_rounded,
+        ),
+      );
     }
 
-    if (report.today.uvIndexMax >= 4 && report.today.precipitationProbabilityMax < 35) {
-      tips.add(const WearTip(
-        title: 'Sunglasses worth packing',
-        detail: 'There should be enough brightness to make them useful.',
-        icon: Icons.wb_sunny_outlined,
-      ));
+    if (report.today.uvIndexMax >= 4 &&
+        report.today.precipitationProbabilityMax < 35) {
+      tips.add(
+        const WearTip(
+          title: 'Sunglasses worth packing',
+          detail: 'There should be enough brightness to make them useful.',
+          icon: Icons.wb_sunny_outlined,
+        ),
+      );
     }
 
     if (tips.isEmpty) {
-      tips.add(const WearTip(
-        title: 'Light layers should do',
-        detail: 'Conditions look settled enough for normal daywear.',
-        icon: Icons.directions_walk_rounded,
-      ));
+      tips.add(
+        const WearTip(
+          title: 'Light layers should do',
+          detail: 'Conditions look settled enough for normal daywear.',
+          icon: Icons.directions_walk_rounded,
+        ),
+      );
     }
 
     return tips.take(4).toList(growable: false);
@@ -509,86 +587,114 @@ class WeatherAdvisor {
     );
     final hasThunder = report.hourly.any((slot) => slot.weatherCode >= 95);
     final hasSnow = report.hourly.any((slot) => _isSnowCode(slot.weatherCode));
-    final heatRisk = max(report.today.maxTempC, report.current.apparentTemperatureC) >= 28;
-    final frostRisk = report.today.minTempC <= 1 || report.current.apparentTemperatureC <= 0;
+    final heatRisk =
+        max(report.today.maxTempC, report.current.apparentTemperatureC) >= 28;
+    final frostRisk =
+        report.today.minTempC <= 1 || report.current.apparentTemperatureC <= 0;
 
     if (maxWind >= 46) {
-      risks.add(const RiskNote(
-        title: 'Blustery spells',
-        detail: 'Stronger gusts could make exposed routes and cycling awkward.',
-        level: RiskLevel.high,
-        icon: Icons.air_rounded,
-      ));
+      risks.add(
+        const RiskNote(
+          title: 'Blustery spells',
+          detail:
+              'Stronger gusts could make exposed routes and cycling awkward.',
+          level: RiskLevel.high,
+          icon: Icons.air_rounded,
+        ),
+      );
     } else if (maxWind >= 32) {
-      risks.add(const RiskNote(
-        title: 'Breezy periods',
-        detail: 'Nothing extreme, but it may feel sharper than the temperature suggests.',
-        level: RiskLevel.headsUp,
-        icon: Icons.air_rounded,
-      ));
+      risks.add(
+        const RiskNote(
+          title: 'Breezy periods',
+          detail:
+              'Nothing extreme, but it may feel sharper than the temperature suggests.',
+          level: RiskLevel.headsUp,
+          icon: Icons.air_rounded,
+        ),
+      );
     }
 
     if (maxHourlyRain >= 1.2) {
-      risks.add(const RiskNote(
-        title: 'Burst of heavy rain',
-        detail: 'Some showers could be punchy enough to spoil an outdoor plan quickly.',
-        level: RiskLevel.headsUp,
-        icon: Icons.water_damage_rounded,
-      ));
+      risks.add(
+        const RiskNote(
+          title: 'Burst of heavy rain',
+          detail:
+              'Some showers could be punchy enough to spoil an outdoor plan quickly.',
+          level: RiskLevel.headsUp,
+          icon: Icons.water_damage_rounded,
+        ),
+      );
     }
 
     if (hasSnow) {
-      risks.add(const RiskNote(
-        title: 'Snow or wintry risk',
-        detail: 'Wintry spells could make outdoor routes slippery and slower.',
-        level: RiskLevel.headsUp,
-        icon: Icons.ac_unit_rounded,
-      ));
+      risks.add(
+        const RiskNote(
+          title: 'Snow or wintry risk',
+          detail:
+              'Wintry spells could make outdoor routes slippery and slower.',
+          level: RiskLevel.headsUp,
+          icon: Icons.ac_unit_rounded,
+        ),
+      );
     }
 
     if (minVisibility <= 1500) {
-      risks.add(const RiskNote(
-        title: 'Reduced visibility',
-        detail: 'Fog or murk could make the commute slower and gloomier.',
-        level: RiskLevel.headsUp,
-        icon: Icons.dehaze_rounded,
-      ));
+      risks.add(
+        const RiskNote(
+          title: 'Reduced visibility',
+          detail:
+              'Fog or murk could slow things down and make travel feel drearier.',
+          level: RiskLevel.headsUp,
+          icon: Icons.dehaze_rounded,
+        ),
+      );
     }
 
     if (hasThunder) {
-      risks.add(const RiskNote(
-        title: 'Thunderstorm risk',
-        detail: 'Keep outdoor plans flexible if storms develop nearby.',
-        level: RiskLevel.high,
-        icon: Icons.thunderstorm_rounded,
-      ));
+      risks.add(
+        const RiskNote(
+          title: 'Thunderstorm risk',
+          detail: 'Keep outdoor plans flexible if storms develop nearby.',
+          level: RiskLevel.high,
+          icon: Icons.thunderstorm_rounded,
+        ),
+      );
     }
 
     if (heatRisk) {
-      risks.add(const RiskNote(
-        title: 'Heat building later',
-        detail: 'Warmer conditions could make exposed outdoor plans more draining.',
-        level: RiskLevel.headsUp,
-        icon: Icons.thermostat_rounded,
-      ));
+      risks.add(
+        const RiskNote(
+          title: 'Heat building later',
+          detail:
+              'Warmer conditions could make exposed outdoor plans more draining.',
+          level: RiskLevel.headsUp,
+          icon: Icons.thermostat_rounded,
+        ),
+      );
     }
 
     if (frostRisk) {
-      risks.add(const RiskNote(
-        title: 'Frosty start',
-        detail: 'A cold start could leave pavements, cars, or grass slick early on.',
-        level: RiskLevel.headsUp,
-        icon: Icons.severe_cold_rounded,
-      ));
+      risks.add(
+        const RiskNote(
+          title: 'Frosty start',
+          detail:
+              'A cold start could leave pavements, cars, or grass slick early on.',
+          level: RiskLevel.headsUp,
+          icon: Icons.severe_cold_rounded,
+        ),
+      );
     }
 
     if (risks.isEmpty) {
-      risks.add(const RiskNote(
-        title: 'No major disruption flagged',
-        detail: 'The day looks manageable with normal UK-weather caution.',
-        level: RiskLevel.calm,
-        icon: Icons.verified_rounded,
-      ));
+      risks.add(
+        const RiskNote(
+          title: 'Nothing major flagged',
+          detail:
+              'The day looks manageable with the usual bit of UK-weather caution.',
+          level: RiskLevel.calm,
+          icon: Icons.verified_rounded,
+        ),
+      );
     }
 
     return risks;
@@ -612,7 +718,10 @@ class WeatherAdvisor {
       if (insight.minutesUntilRain != null)
         'Rain may arrive in about ${insight.minutesUntilRain} minutes.',
       if (insight.maxPrecipitationMm > 0.04)
-        interpreter.rainAmount(insight.maxPrecipitationMm, prefix: 'Peak burst'),
+        interpreter.rainAmount(
+          insight.maxPrecipitationMm,
+          prefix: 'Peak burst',
+        ),
       interpreter.rainChance(maxChance),
       interpreter.wind(report.current.windSpeedKph),
       interpreter.visibility(report.current.visibilityMeters),
@@ -650,7 +759,11 @@ class WeatherAdvisor {
     );
     final details = <String>[
       if (insight.start != null && insight.end != null)
-        interpreter.dryWindow(insight.start!, insight.end!, prefix: 'Best block'),
+        interpreter.dryWindow(
+          insight.start!,
+          insight.end!,
+          prefix: 'Best block',
+        ),
       'Confidence is ${insight.confidenceLabel.toLowerCase()}.',
       interpreter.rainChance(maxChance),
       interpreter.wind(maxWind),
@@ -680,8 +793,14 @@ class WeatherAdvisor {
     final windows = commute.windows
         .map((leg) {
           final slots = _slotsInWindow(report.hourly, leg.start, leg.end);
-          final maxChance = slots.fold<int>(0, (value, slot) => max(value, slot.precipitationProbability));
-          final maxWind = slots.fold<double>(0, (value, slot) => max(value, slot.windSpeedKph));
+          final maxChance = slots.fold<int>(
+            0,
+            (value, slot) => max(value, slot.precipitationProbability),
+          );
+          final maxWind = slots.fold<double>(
+            0,
+            (value, slot) => max(value, slot.windSpeedKph),
+          );
           final minVisibility = slots.fold<double>(
             report.current.visibilityMeters,
             (value, slot) => min(value, slot.visibilityMeters),
@@ -698,7 +817,8 @@ class WeatherAdvisor {
               details: <String>[
                 if (slots.isNotEmpty) interpreter.rainChance(maxChance),
                 if (slots.isNotEmpty) interpreter.wind(maxWind),
-                if (minVisibility < 10000) interpreter.visibility(minVisibility),
+                if (minVisibility < 10000)
+                  interpreter.visibility(minVisibility),
               ],
             ),
             summary: leg.summary,
@@ -732,9 +852,16 @@ class WeatherAdvisor {
     }
 
     final details = <String>[
-      interpreter.temperatureRange(report.today.minTempC, report.today.maxTempC),
-      interpreter.gust(max(report.today.maxWindKph, report.current.windGustKph)),
-      if (dryWindow.isAvailable && dryWindow.start != null && dryWindow.end != null)
+      interpreter.temperatureRange(
+        report.today.minTempC,
+        report.today.maxTempC,
+      ),
+      interpreter.gust(
+        max(report.today.maxWindKph, report.current.windGustKph),
+      ),
+      if (dryWindow.isAvailable &&
+          dryWindow.start != null &&
+          dryWindow.end != null)
         interpreter.dryWindow(dryWindow.start!, dryWindow.end!),
       if (risks.isNotEmpty && risks.first.level != RiskLevel.calm)
         'Top weather flag: ${risks.first.title}.',
@@ -767,7 +894,9 @@ class WeatherAdvisor {
                 tip.title.toLowerCase().contains('waterproof'))
               interpreter.rainAmount(report.today.precipitationMm),
             if (tip.title.toLowerCase().contains('windy'))
-              interpreter.gust(max(report.today.maxWindKph, report.current.windGustKph)),
+              interpreter.gust(
+                max(report.today.maxWindKph, report.current.windGustKph),
+              ),
             if (tip.title.toLowerCase().contains('cold') ||
                 tip.title.toLowerCase().contains('wrap') ||
                 tip.title.toLowerCase().contains('layer'))
@@ -775,7 +904,10 @@ class WeatherAdvisor {
             if (tip.title.toLowerCase().contains('cold') ||
                 tip.title.toLowerCase().contains('wrap') ||
                 tip.title.toLowerCase().contains('layer'))
-              interpreter.temperatureRange(report.today.minTempC, report.today.maxTempC),
+              interpreter.temperatureRange(
+                report.today.minTempC,
+                report.today.maxTempC,
+              ),
             if (tip.title.toLowerCase().contains('sunglasses'))
               'UV peaks around ${report.today.uvIndexMax.toStringAsFixed(1)}.',
           ];
@@ -850,18 +982,29 @@ class WeatherAdvisor {
         .map((risk) {
           final lowerTitle = risk.title.toLowerCase();
           final details = <String>[
-            if (risk.source == AlertSource.official) 'Source: ${risk.sourceLabel}.',
-            if (lowerTitle.contains('wind') || lowerTitle.contains('breezy') || lowerTitle.contains('blustery'))
+            if (risk.source == AlertSource.official)
+              'Source: ${risk.sourceLabel}.',
+            if (lowerTitle.contains('wind') ||
+                lowerTitle.contains('breezy') ||
+                lowerTitle.contains('blustery'))
               interpreter.gust(maxWind),
             if (lowerTitle.contains('rain') || lowerTitle.contains('storm'))
               interpreter.rainAmount(maxRain, prefix: 'Peak hourly rain'),
-            if (lowerTitle.contains('visibility') || lowerTitle.contains('fog') || lowerTitle.contains('murk'))
+            if (lowerTitle.contains('visibility') ||
+                lowerTitle.contains('fog') ||
+                lowerTitle.contains('murk'))
               interpreter.visibility(minVisibility),
             if (lowerTitle.contains('heat'))
-              interpreter.temperatureRange(report.today.minTempC, report.today.maxTempC),
-            if (lowerTitle.contains('frost') || lowerTitle.contains('snow') || lowerTitle.contains('wintry'))
+              interpreter.temperatureRange(
+                report.today.minTempC,
+                report.today.maxTempC,
+              ),
+            if (lowerTitle.contains('frost') ||
+                lowerTitle.contains('snow') ||
+                lowerTitle.contains('wintry'))
               'Overnight lows could dip to ${formatTemperature(report.today.minTempC)}.',
-            if (risk.link != null) 'More detail is available from the linked warning.',
+            if (risk.link != null)
+              'More detail is available from the linked warning.',
           ];
 
           return RiskNote(
@@ -882,9 +1025,12 @@ class WeatherAdvisor {
     DateTime now,
   ) {
     final upcomingWeekend = daily
-        .where((day) =>
-            !day.date.isBefore(DateTime(now.year, now.month, now.day)) &&
-            (day.date.weekday == DateTime.saturday || day.date.weekday == DateTime.sunday))
+        .where(
+          (day) =>
+              !day.date.isBefore(DateTime(now.year, now.month, now.day)) &&
+              (day.date.weekday == DateTime.saturday ||
+                  day.date.weekday == DateTime.sunday),
+        )
         .take(2)
         .toList(growable: false);
 
@@ -895,16 +1041,21 @@ class WeatherAdvisor {
     final weekendDays = upcomingWeekend
         .map(_buildWeekendDayPlan)
         .toList(growable: false);
-    final sorted = [...upcomingWeekend]..sort((a, b) => _dayUsefulnessScore(b).compareTo(_dayUsefulnessScore(a)));
+    final sorted = [
+      ...upcomingWeekend,
+    ]..sort((a, b) => _dayUsefulnessScore(b).compareTo(_dayUsefulnessScore(a)));
     final best = sorted.first;
     final worst = sorted.last;
     final scoreGap = _dayUsefulnessScore(best) - _dayUsefulnessScore(worst);
 
     final title = switch (weekendDays.length) {
       1 => '${_weekendLabel(weekendDays.first.date)} is worth planning around',
-      _ when scoreGap >= 2.2 => '${_weekendLabel(best.date)} is your better outdoor day',
-      _ when weekendDays.every((day) => day.tone == AdviceTone.go) => 'The weekend looks open for plans',
-      _ when weekendDays.every((day) => day.tone == AdviceTone.wait) => 'Weekend plans look weather-led',
+      _ when scoreGap >= 2.2 =>
+        '${_weekendLabel(best.date)} is your better outdoor day',
+      _ when weekendDays.every((day) => day.tone == AdviceTone.go) =>
+        'The weekend looks open for plans',
+      _ when weekendDays.every((day) => day.tone == AdviceTone.wait) =>
+        'Weekend plans look weather-led',
       _ => 'A mixed weekend picture',
     };
 
@@ -916,13 +1067,14 @@ class WeatherAdvisor {
         'Both days look usable for walks, errands, and time outside.',
       _ when weekendDays.every((day) => day.tone == AdviceTone.wait) =>
         'Rain or wind could interrupt plans on both days, so keep them flexible.',
-      _ => 'One day looks more practical than the other, so choose your longer outdoor plans carefully.',
+      _ =>
+        'One day looks more practical than the other, so choose your longer outdoor plans carefully.',
     };
 
     final tone = weekendDays.any((day) => day.tone == AdviceTone.go)
         ? weekendDays.any((day) => day.tone == AdviceTone.wait)
-            ? AdviceTone.watch
-            : AdviceTone.go
+              ? AdviceTone.watch
+              : AdviceTone.go
         : AdviceTone.wait;
 
     return WeekendPlanner(
@@ -936,34 +1088,36 @@ class WeatherAdvisor {
   WeekendDayPlan _buildWeekendDayPlan(DailyForecast day) {
     final descriptor = describeWeatherCode(day.weatherCode, isDay: true);
     final label = _weekendLabel(day.date);
-    final mostlyWet = day.precipitationProbabilityMax >= 70 || day.precipitationMm >= 4;
-    final mixed = day.precipitationProbabilityMax >= 40 || day.precipitationMm >= 1.5;
+    final mostlyWet =
+        day.precipitationProbabilityMax >= 70 || day.precipitationMm >= 4;
+    final mixed =
+        day.precipitationProbabilityMax >= 40 || day.precipitationMm >= 1.5;
     final windy = day.maxWindKph >= 30;
     final mild = day.maxTempC >= 14 && day.maxTempC <= 22;
 
     final tone = mostlyWet || windy && day.maxWindKph >= 36
         ? AdviceTone.wait
         : mixed || windy
-            ? AdviceTone.watch
-            : AdviceTone.go;
+        ? AdviceTone.watch
+        : AdviceTone.go;
 
     final headline = tone == AdviceTone.go
         ? '$label looks like the easier pick'
         : tone == AdviceTone.watch
-            ? '$label looks usable with some care'
-            : '$label could be awkward outside';
+        ? '$label looks usable with some care'
+        : '$label could be awkward outside';
 
     final summary = mostlyWet
         ? 'Wet spells look likely for much of the day.'
         : mixed && windy
-            ? 'Changeable weather with some wind could interrupt longer outdoor plans.'
-            : mixed
-                ? 'There should be some usable gaps, but not an all-day banker.'
-                : windy
-                    ? 'Mostly dry, but breezier than ideal in exposed spots.'
-                    : mild
-                        ? 'Mostly dry and mild, with good scope for time outside.'
-                        : '${descriptor.summary} with fairly manageable conditions.';
+        ? 'Changeable weather with some wind could interrupt longer outdoor plans.'
+        : mixed
+        ? 'There should be some usable gaps, but not an all-day banker.'
+        : windy
+        ? 'Mostly dry, but breezier than ideal in exposed spots.'
+        : mild
+        ? 'Mostly dry and mild, with good scope for time outside.'
+        : '${descriptor.summary} with fairly manageable conditions.';
 
     return WeekendDayPlan(
       label: label,
@@ -1000,7 +1154,10 @@ class WeatherAdvisor {
                 'Low near ${formatTemperature(day.minTempC)}.',
                 interpreter.rainChance(day.precipitationProbabilityMax),
                 if (day.precipitationMm > 0.04)
-                  interpreter.rainAmount(day.precipitationMm, prefix: 'Daily rainfall'),
+                  interpreter.rainAmount(
+                    day.precipitationMm,
+                    prefix: 'Daily rainfall',
+                  ),
                 interpreter.wind(day.maxWindKph),
               ],
             ),
@@ -1040,16 +1197,18 @@ class WeatherAdvisor {
       isDay: report.current.isDay,
     );
 
-    final commuteTone = commute.windows.any((window) => window.tone == AdviceTone.wait)
+    final commuteTone =
+        commute.windows.any((window) => window.tone == AdviceTone.wait)
         ? AdviceTone.wait
         : commute.windows.any((window) => window.tone == AdviceTone.watch)
-            ? AdviceTone.watch
-            : AdviceTone.go;
+        ? AdviceTone.watch
+        : AdviceTone.go;
 
     return <HomeSummaryCard>[
       HomeSummaryCard(
         title: 'Current weather',
-        value: '${formatTemperature(report.current.temperatureC)} ${currentDescriptor.label}',
+        value:
+            '${formatTemperature(report.current.temperatureC)} ${currentDescriptor.label}',
         detail: interpreter.explain(
           'Feels like ${formatTemperature(report.current.apparentTemperatureC)}',
           details: <String>[
@@ -1063,7 +1222,9 @@ class WeatherAdvisor {
       HomeSummaryCard(
         title: 'Next rain',
         value: nextHour.title,
-        detail: interpreter.isDetailed ? nextHour.detail : nextHour.departureAdvice,
+        detail: interpreter.isDetailed
+            ? nextHour.detail
+            : nextHour.departureAdvice,
         icon: Icons.umbrella_rounded,
         tone: nextHour.tone,
       ),
@@ -1076,7 +1237,9 @@ class WeatherAdvisor {
       ),
       HomeSummaryCard(
         title: 'Commute summary',
-        value: commute.windows.isEmpty ? 'No routines saved' : _commuteHeadline(commute),
+        value: commute.windows.isEmpty
+            ? 'No routines saved'
+            : _commuteHeadline(commute),
         detail: commute.summary,
         icon: Icons.commute_rounded,
         tone: commuteTone,
@@ -1087,10 +1250,12 @@ class WeatherAdvisor {
         detail: _supportingSentences(simpleSummary).isNotEmpty
             ? _supportingSentences(simpleSummary)
             : report.officialWarnings.isNotEmpty
-                ? '${report.officialWarnings.length} official warning${report.officialWarnings.length == 1 ? '' : 's'} available'
-                : 'No official warnings matched your location',
+            ? '${report.officialWarnings.length} official warning${report.officialWarnings.length == 1 ? '' : 's'} available'
+            : 'No official warnings matched your location',
         icon: Icons.chat_bubble_outline_rounded,
-        tone: report.officialWarnings.isNotEmpty ? AdviceTone.watch : AdviceTone.go,
+        tone: report.officialWarnings.isNotEmpty
+            ? AdviceTone.watch
+            : AdviceTone.go,
       ),
     ];
   }
@@ -1103,8 +1268,13 @@ class WeatherAdvisor {
     return interpreter.explain(
       summary,
       details: <String>[
-        interpreter.temperatureRange(report.today.minTempC, report.today.maxTempC),
-        interpreter.gust(max(report.today.maxWindKph, report.current.windGustKph)),
+        interpreter.temperatureRange(
+          report.today.minTempC,
+          report.today.maxTempC,
+        ),
+        interpreter.gust(
+          max(report.today.maxWindKph, report.current.windGustKph),
+        ),
         interpreter.rainChance(report.today.precipitationProbabilityMax),
         if (report.officialWarnings.isNotEmpty)
           interpreter.count('official warning', report.officialWarnings.length),
@@ -1121,7 +1291,8 @@ class WeatherAdvisor {
     final phrases = <String>[];
     final wearPhrase = _wearPhrase(wearTips);
     final breezyLater = report.today.maxWindKph >= 28;
-    final coldLater = report.today.minTempC <= 6 || report.current.apparentTemperatureC <= 8;
+    final coldLater =
+        report.today.minTempC <= 6 || report.current.apparentTemperatureC <= 8;
 
     if ((nextHour.minutesUntilRain ?? 100) <= 20 && dryWindow.start != null) {
       phrases.add(
@@ -1218,22 +1389,22 @@ class WeatherAdvisor {
     score -= day.precipitationProbabilityMax >= 80
         ? 3.6
         : day.precipitationProbabilityMax >= 55
-            ? 2.1
-            : day.precipitationProbabilityMax >= 35
-                ? 1.0
-                : 0;
+        ? 2.1
+        : day.precipitationProbabilityMax >= 35
+        ? 1.0
+        : 0;
     score -= day.precipitationMm >= 6
         ? 2.8
         : day.precipitationMm >= 2
-            ? 1.5
-            : day.precipitationMm >= 0.6
-                ? 0.8
-                : 0;
+        ? 1.5
+        : day.precipitationMm >= 0.6
+        ? 0.8
+        : 0;
     score -= day.maxWindKph >= 38
         ? 2.2
         : day.maxWindKph >= 28
-            ? 1.0
-            : 0;
+        ? 1.0
+        : 0;
     score += day.maxTempC >= 13 && day.maxTempC <= 22 ? 0.8 : 0;
     return score;
   }
@@ -1340,10 +1511,10 @@ class WeatherAdvisor {
       detail: score >= 8
           ? 'Mostly dry and comfortable for getting about on foot.'
           : context.rainMm >= 0.7 || context.rainChance >= 70
-              ? 'Showers are the main drag on an otherwise easy walk.'
-              : context.windKph >= 30
-                  ? 'Walkable, but gusts will make it feel less pleasant.'
-                  : 'Usable enough, but expect some typical UK-weather friction.',
+          ? 'Showers are the main drag on an otherwise easy walk.'
+          : context.windKph >= 30
+          ? 'Walkable, but gusts will make it feel less pleasant.'
+          : 'Usable enough, but expect some typical UK-weather friction.',
     );
   }
 
@@ -1361,10 +1532,10 @@ class WeatherAdvisor {
       detail: score >= 8
           ? 'A solid day for a run with no major weather blocker.'
           : context.windKph >= 30
-              ? 'Wind is the main thing that could make a run feel harder.'
-              : context.rainMm >= 0.7 || context.rainChance >= 70
-                  ? 'Rain will make a run wetter than ideal.'
-                  : 'Still runnable, but conditions are only average.',
+          ? 'Wind is the main thing that could make a run feel harder.'
+          : context.rainMm >= 0.7 || context.rainChance >= 70
+          ? 'Rain will make a run wetter than ideal.'
+          : 'Still runnable, but conditions are only average.',
     );
   }
 
@@ -1382,10 +1553,10 @@ class WeatherAdvisor {
       detail: score >= 8
           ? 'Mostly dry with manageable wind for riding.'
           : context.windKph >= 30
-              ? 'Gusts are the biggest reason this ride could feel awkward.'
-              : context.rainMm >= 0.7 || context.rainChance >= 70
-                  ? 'Wet roads and rain risk drag the cycling score down.'
-                  : 'Rideable enough, but not especially comfortable.',
+          ? 'Gusts are the biggest reason this ride could feel awkward.'
+          : context.rainMm >= 0.7 || context.rainChance >= 70
+          ? 'Wet roads and rain risk drag the cycling score down.'
+          : 'Rideable enough, but not especially comfortable.',
     );
   }
 
@@ -1397,8 +1568,8 @@ class WeatherAdvisor {
     raw += context.dryWindowMinutes >= 150
         ? 1.8
         : context.dryWindowMinutes >= 90
-            ? 0.9
-            : 0;
+        ? 0.9
+        : 0;
     raw += context.brightSkies ? 0.7 : 0;
     final score = _score(raw);
     return _activity(
@@ -1408,10 +1579,10 @@ class WeatherAdvisor {
       detail: score >= 8
           ? 'A decent dry block makes an outdoor sit-down realistic.'
           : context.dryWindowMinutes < 60
-              ? 'There is not enough reliable dry time to make this easy.'
-              : context.windKph >= 30
-                  ? 'Wind and comfort are the main problems for a picnic.'
-                  : 'Possible, but only if you stay flexible.',
+          ? 'There is not enough reliable dry time to make this easy.'
+          : context.windKph >= 30
+          ? 'Wind and comfort are the main problems for a picnic.'
+          : 'Possible, but only if you stay flexible.',
     );
   }
 
@@ -1421,10 +1592,10 @@ class WeatherAdvisor {
     raw += context.dryWindowMinutes >= 180
         ? 3.4
         : context.dryWindowMinutes >= 120
-            ? 2.2
-            : context.dryWindowMinutes >= 60
-                ? 1.0
-                : 0;
+        ? 2.2
+        : context.dryWindowMinutes >= 60
+        ? 1.0
+        : 0;
     raw += context.windKph >= 10 && context.windKph <= 28 ? 1.1 : 0;
     raw += context.brightSkies ? 0.8 : 0;
     final score = _score(raw);
@@ -1435,8 +1606,8 @@ class WeatherAdvisor {
       detail: score >= 8
           ? 'A long dry window gives washing a real chance outside.'
           : context.rainChance >= 60 || context.rainMm >= 0.7
-              ? 'Rain risk is the big reason outdoor drying looks weak.'
-              : 'You may get some drying done, but it is not a banker.',
+          ? 'Rain risk is the big reason outdoor drying looks weak.'
+          : 'You may get some drying done, but it is not a banker.',
     );
   }
 
@@ -1453,8 +1624,8 @@ class WeatherAdvisor {
       detail: score >= 8
           ? 'Looks fine for a normal dog walk without much hassle.'
           : context.rainChance >= 60 || context.rainMm >= 0.7
-              ? 'A wet patch is the main thing likely to spoil the walk.'
-              : 'Still doable, but less pleasant than usual.',
+          ? 'A wet patch is the main thing likely to spoil the walk.'
+          : 'Still doable, but less pleasant than usual.',
     );
   }
 
@@ -1472,10 +1643,10 @@ class WeatherAdvisor {
       detail: score >= 8
           ? 'Good enough for a kickabout with no major weather issue.'
           : context.windKph >= 30
-              ? 'Wind will make the game feel messier than usual.'
-              : context.rainChance >= 60 || context.rainMm >= 0.7
-                  ? 'Rain is the biggest reason football looks less appealing.'
-                  : 'Playable, but conditions are only middling.',
+          ? 'Wind will make the game feel messier than usual.'
+          : context.rainChance >= 60 || context.rainMm >= 0.7
+          ? 'Rain is the biggest reason football looks less appealing.'
+          : 'Playable, but conditions are only middling.',
     );
   }
 
@@ -1493,10 +1664,10 @@ class WeatherAdvisor {
       detail: score >= 8
           ? 'There is enough comfort and dryness to sit outside for a drink.'
           : context.rainChance >= 60 || context.rainMm >= 0.7
-              ? 'Rain makes this much less inviting.'
-              : context.windKph >= 30
-                  ? 'Wind knocks the comfort level down for sitting outside.'
-                  : 'You might manage it, but it is not an obvious outdoor day.',
+          ? 'Rain makes this much less inviting.'
+          : context.windKph >= 30
+          ? 'Wind knocks the comfort level down for sitting outside.'
+          : 'You might manage it, but it is not an obvious outdoor day.',
     );
   }
 
@@ -1649,7 +1820,8 @@ class _ActivityContext {
     );
     final averageCloud = nearHours.isEmpty
         ? report.current.cloudCover.toDouble()
-        : nearHours.fold<int>(0, (sum, slot) => sum + slot.cloudCover) / nearHours.length;
+        : nearHours.fold<int>(0, (sum, slot) => sum + slot.cloudCover) /
+              nearHours.length;
 
     return _ActivityContext(
       feelsLikeC: report.current.apparentTemperatureC,

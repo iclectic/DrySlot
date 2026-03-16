@@ -12,14 +12,15 @@ enum ExplanationMode { simple, detailed }
 
 extension ExplanationModeX on ExplanationMode {
   String get label => switch (this) {
-        ExplanationMode.simple => 'Simple',
-        ExplanationMode.detailed => 'Detailed',
-      };
+    ExplanationMode.simple => 'Simple',
+    ExplanationMode.detailed => 'Detailed',
+  };
 
   String get description => switch (this) {
-        ExplanationMode.simple => 'Plain English and practical guidance.',
-        ExplanationMode.detailed => 'Shows supporting weather metrics and more detail.',
-      };
+    ExplanationMode.simple => 'Plain English with the main answer first.',
+    ExplanationMode.detailed =>
+      'Adds supporting metrics and fuller forecast context.',
+  };
 }
 
 class WeatherLocation {
@@ -170,7 +171,9 @@ class SavedCommuteWindow {
 
   factory SavedCommuteWindow.fromJson(Map<String, dynamic> json) {
     return SavedCommuteWindow(
-      id: json['id'] as String? ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      id:
+          json['id'] as String? ??
+          DateTime.now().millisecondsSinceEpoch.toString(),
       label: json['label'] as String? ?? 'Saved window',
       startMinutes: (json['startMinutes'] as num?)?.toInt() ?? 480,
       endMinutes: (json['endMinutes'] as num?)?.toInt() ?? 540,
@@ -259,6 +262,40 @@ class CurrentConditions {
   final double windSpeedKph;
   final double windGustKph;
   final double visibilityMeters;
+
+  Map<String, Object> toJson() {
+    return <String, Object>{
+      'time': time.toIso8601String(),
+      'temperatureC': temperatureC,
+      'apparentTemperatureC': apparentTemperatureC,
+      'weatherCode': weatherCode,
+      'isDay': isDay,
+      'precipitationMm': precipitationMm,
+      'rainMm': rainMm,
+      'showersMm': showersMm,
+      'cloudCover': cloudCover,
+      'windSpeedKph': windSpeedKph,
+      'windGustKph': windGustKph,
+      'visibilityMeters': visibilityMeters,
+    };
+  }
+
+  factory CurrentConditions.fromJson(Map<String, dynamic> json) {
+    return CurrentConditions(
+      time: _parseDateTime(json['time']),
+      temperatureC: _asDouble(json['temperatureC']),
+      apparentTemperatureC: _asDouble(json['apparentTemperatureC']),
+      weatherCode: _asInt(json['weatherCode']),
+      isDay: json['isDay'] as bool? ?? true,
+      precipitationMm: _asDouble(json['precipitationMm']),
+      rainMm: _asDouble(json['rainMm']),
+      showersMm: _asDouble(json['showersMm']),
+      cloudCover: _asInt(json['cloudCover']),
+      windSpeedKph: _asDouble(json['windSpeedKph']),
+      windGustKph: _asDouble(json['windGustKph']),
+      visibilityMeters: _asDouble(json['visibilityMeters'], fallback: 10000),
+    );
+  }
 }
 
 class MinuteForecast {
@@ -277,6 +314,28 @@ class MinuteForecast {
   final double windSpeedKph;
   final double visibilityMeters;
   final bool isDay;
+
+  Map<String, Object> toJson() {
+    return <String, Object>{
+      'time': time.toIso8601String(),
+      'precipitationMm': precipitationMm,
+      'weatherCode': weatherCode,
+      'windSpeedKph': windSpeedKph,
+      'visibilityMeters': visibilityMeters,
+      'isDay': isDay,
+    };
+  }
+
+  factory MinuteForecast.fromJson(Map<String, dynamic> json) {
+    return MinuteForecast(
+      time: _parseDateTime(json['time']),
+      precipitationMm: _asDouble(json['precipitationMm']),
+      weatherCode: _asInt(json['weatherCode']),
+      windSpeedKph: _asDouble(json['windSpeedKph']),
+      visibilityMeters: _asDouble(json['visibilityMeters'], fallback: 10000),
+      isDay: json['isDay'] as bool? ?? true,
+    );
+  }
 }
 
 class HourlyForecast {
@@ -307,6 +366,40 @@ class HourlyForecast {
   final int cloudCover;
   final double uvIndex;
   final bool isDay;
+
+  Map<String, Object> toJson() {
+    return <String, Object>{
+      'time': time.toIso8601String(),
+      'temperatureC': temperatureC,
+      'apparentTemperatureC': apparentTemperatureC,
+      'precipitationProbability': precipitationProbability,
+      'precipitationMm': precipitationMm,
+      'weatherCode': weatherCode,
+      'windSpeedKph': windSpeedKph,
+      'windGustKph': windGustKph,
+      'visibilityMeters': visibilityMeters,
+      'cloudCover': cloudCover,
+      'uvIndex': uvIndex,
+      'isDay': isDay,
+    };
+  }
+
+  factory HourlyForecast.fromJson(Map<String, dynamic> json) {
+    return HourlyForecast(
+      time: _parseDateTime(json['time']),
+      temperatureC: _asDouble(json['temperatureC']),
+      apparentTemperatureC: _asDouble(json['apparentTemperatureC']),
+      precipitationProbability: _asInt(json['precipitationProbability']),
+      precipitationMm: _asDouble(json['precipitationMm']),
+      weatherCode: _asInt(json['weatherCode']),
+      windSpeedKph: _asDouble(json['windSpeedKph']),
+      windGustKph: _asDouble(json['windGustKph']),
+      visibilityMeters: _asDouble(json['visibilityMeters'], fallback: 10000),
+      cloudCover: _asInt(json['cloudCover']),
+      uvIndex: _asDouble(json['uvIndex']),
+      isDay: json['isDay'] as bool? ?? true,
+    );
+  }
 }
 
 class DailyForecast {
@@ -333,6 +426,36 @@ class DailyForecast {
   final double uvIndexMax;
   final DateTime sunrise;
   final DateTime sunset;
+
+  Map<String, Object> toJson() {
+    return <String, Object>{
+      'date': date.toIso8601String(),
+      'weatherCode': weatherCode,
+      'maxTempC': maxTempC,
+      'minTempC': minTempC,
+      'precipitationMm': precipitationMm,
+      'precipitationProbabilityMax': precipitationProbabilityMax,
+      'maxWindKph': maxWindKph,
+      'uvIndexMax': uvIndexMax,
+      'sunrise': sunrise.toIso8601String(),
+      'sunset': sunset.toIso8601String(),
+    };
+  }
+
+  factory DailyForecast.fromJson(Map<String, dynamic> json) {
+    return DailyForecast(
+      date: _parseDateTime(json['date']),
+      weatherCode: _asInt(json['weatherCode']),
+      maxTempC: _asDouble(json['maxTempC']),
+      minTempC: _asDouble(json['minTempC']),
+      precipitationMm: _asDouble(json['precipitationMm']),
+      precipitationProbabilityMax: _asInt(json['precipitationProbabilityMax']),
+      maxWindKph: _asDouble(json['maxWindKph']),
+      uvIndexMax: _asDouble(json['uvIndexMax']),
+      sunrise: _parseDateTime(json['sunrise']),
+      sunset: _parseDateTime(json['sunset']),
+    );
+  }
 }
 
 class WeatherReport {
@@ -361,6 +484,80 @@ class WeatherReport {
   final String sourceLabel;
   final List<OfficialWarning> officialWarnings;
   final String? sourceNote;
+
+  WeatherReport copyWith({
+    WeatherLocation? location,
+    DateTime? fetchedAt,
+    CurrentConditions? current,
+    List<MinuteForecast>? minutely,
+    List<HourlyForecast>? hourly,
+    DailyForecast? today,
+    List<DailyForecast>? daily,
+    bool? usingFallback,
+    String? sourceLabel,
+    List<OfficialWarning>? officialWarnings,
+    String? sourceNote,
+  }) {
+    return WeatherReport(
+      location: location ?? this.location,
+      fetchedAt: fetchedAt ?? this.fetchedAt,
+      current: current ?? this.current,
+      minutely: minutely ?? this.minutely,
+      hourly: hourly ?? this.hourly,
+      today: today ?? this.today,
+      daily: daily ?? this.daily,
+      usingFallback: usingFallback ?? this.usingFallback,
+      sourceLabel: sourceLabel ?? this.sourceLabel,
+      officialWarnings: officialWarnings ?? this.officialWarnings,
+      sourceNote: sourceNote ?? this.sourceNote,
+    );
+  }
+
+  Map<String, Object?> toJson() {
+    return <String, Object?>{
+      'location': location.toJson(),
+      'fetchedAt': fetchedAt.toIso8601String(),
+      'current': current.toJson(),
+      'minutely': minutely.map((slot) => slot.toJson()).toList(growable: false),
+      'hourly': hourly.map((slot) => slot.toJson()).toList(growable: false),
+      'today': today.toJson(),
+      'daily': daily.map((day) => day.toJson()).toList(growable: false),
+      'usingFallback': usingFallback,
+      'sourceLabel': sourceLabel,
+      'officialWarnings': officialWarnings
+          .map((warning) => warning.toJson())
+          .toList(growable: false),
+      'sourceNote': sourceNote,
+    };
+  }
+
+  factory WeatherReport.fromJson(Map<String, dynamic> json) {
+    return WeatherReport(
+      location: WeatherLocation.fromJson(
+        (json['location'] as Map<Object?, Object?>?)?.cast<String, dynamic>() ??
+            <String, dynamic>{},
+      ),
+      fetchedAt: _parseDateTime(json['fetchedAt']),
+      current: CurrentConditions.fromJson(
+        (json['current'] as Map<Object?, Object?>?)?.cast<String, dynamic>() ??
+            <String, dynamic>{},
+      ),
+      minutely: _mapList(json['minutely'], MinuteForecast.fromJson),
+      hourly: _mapList(json['hourly'], HourlyForecast.fromJson),
+      today: DailyForecast.fromJson(
+        (json['today'] as Map<Object?, Object?>?)?.cast<String, dynamic>() ??
+            <String, dynamic>{},
+      ),
+      daily: _mapList(json['daily'], DailyForecast.fromJson),
+      usingFallback: json['usingFallback'] as bool? ?? false,
+      sourceLabel: json['sourceLabel'] as String? ?? 'Saved forecast',
+      officialWarnings: _mapList(
+        json['officialWarnings'],
+        OfficialWarning.fromJson,
+      ),
+      sourceNote: json['sourceNote'] as String?,
+    );
+  }
 }
 
 class OfficialWarning {
@@ -377,6 +574,27 @@ class OfficialWarning {
   final String severityLabel;
   final String sourceLabel;
   final String? link;
+
+  Map<String, Object?> toJson() {
+    return <String, Object?>{
+      'title': title,
+      'summary': summary,
+      'severityLabel': severityLabel,
+      'sourceLabel': sourceLabel,
+      'link': link,
+    };
+  }
+
+  factory OfficialWarning.fromJson(Map<String, dynamic> json) {
+    return OfficialWarning(
+      title: json['title'] as String? ?? '',
+      summary: json['summary'] as String? ?? '',
+      severityLabel: json['severityLabel'] as String? ?? 'Official warning',
+      sourceLabel:
+          json['sourceLabel'] as String? ?? 'Met Office official warning',
+      link: json['link'] as String?,
+    );
+  }
 }
 
 class GuidanceHeadline {
@@ -456,10 +674,7 @@ class CommuteLeg {
 }
 
 class CommuteOverview {
-  const CommuteOverview({
-    required this.windows,
-    required this.summary,
-  });
+  const CommuteOverview({required this.windows, required this.summary});
 
   final List<CommuteLeg> windows;
   final String summary;
@@ -597,4 +812,26 @@ class WeatherGuidance {
   final List<HourlyForecast> highlightHours;
   final List<HomeSummaryCard> homeCards;
   final WeekendPlanner? weekendPlanner;
+}
+
+double _asDouble(dynamic value, {double fallback = 0}) {
+  return (value as num?)?.toDouble() ?? fallback;
+}
+
+int _asInt(dynamic value) {
+  return (value as num?)?.toInt() ?? 0;
+}
+
+DateTime _parseDateTime(dynamic value) {
+  return DateTime.tryParse(value?.toString() ?? '') ?? DateTime.now();
+}
+
+List<T> _mapList<T>(
+  dynamic value,
+  T Function(Map<String, dynamic> json) builder,
+) {
+  return (value as List<dynamic>? ?? const <dynamic>[])
+      .whereType<Map>()
+      .map((entry) => builder(entry.cast<String, dynamic>()))
+      .toList(growable: false);
 }

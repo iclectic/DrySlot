@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/display_settings_controller.dart';
@@ -10,94 +10,85 @@ import '../../../core/utils/formatters.dart';
 import '../data/weather_repository.dart';
 import '../domain/weather_describer.dart';
 import '../domain/weather_models.dart';
+import '../domain/weather_repository.dart';
 import 'weather_dashboard_controller.dart';
 
-class WeatherDashboardPage extends StatefulWidget {
-  const WeatherDashboardPage({
-    super.key,
-    required this.preferences,
-    required this.displaySettings,
-  });
-
-  final SharedPreferences preferences;
-  final DisplaySettingsController displaySettings;
+class WeatherDashboardPage extends ConsumerStatefulWidget {
+  const WeatherDashboardPage({super.key});
 
   @override
-  State<WeatherDashboardPage> createState() => _WeatherDashboardPageState();
+  ConsumerState<WeatherDashboardPage> createState() =>
+      _WeatherDashboardPageState();
 }
 
-class _WeatherDashboardPageState extends State<WeatherDashboardPage> {
-  late final OpenMeteoWeatherRepository _repository;
-  late final WeatherDashboardController _controller;
+class _WeatherDashboardPageState extends ConsumerState<WeatherDashboardPage> {
+  bool _showMoreDetail = false;
 
   @override
   void initState() {
     super.initState();
-    _repository = OpenMeteoWeatherRepository();
-    _controller = WeatherDashboardController(
-      repository: _repository,
-      preferences: widget.preferences,
+    unawaited(
+      ref.read(weatherDashboardControllerProvider.notifier).initialize(),
     );
-    unawaited(_controller.initialize());
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    _repository.close();
-    super.dispose();
   }
 
   Future<void> _openLocationPicker() async {
+    final state = ref.read(weatherDashboardControllerProvider);
     final picked = await showModalBottomSheet<WeatherLocation>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
         return LocationSearchSheet(
-          repository: _repository,
-          selectedLocation: _controller.selectedLocation,
+          repository: ref.read(weatherRepositoryProvider),
+          selectedLocation: state.selectedLocation,
         );
       },
     );
 
     if (picked != null) {
-      await _controller.refresh(location: picked);
+      await ref
+          .read(weatherDashboardControllerProvider.notifier)
+          .refresh(location: picked);
     }
   }
 
   Future<void> _openCommuteWindowManager() async {
+    final state = ref.read(weatherDashboardControllerProvider);
     final result = await showModalBottomSheet<List<SavedCommuteWindow>>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
-        return CommuteWindowsSheet(
-          initialWindows: _controller.commuteWindows,
-        );
+        return CommuteWindowsSheet(initialWindows: state.commuteWindows);
       },
     );
 
     if (result != null) {
-      await _controller.saveCommuteWindows(result);
+      await ref
+          .read(weatherDashboardControllerProvider.notifier)
+          .saveCommuteWindows(result);
     }
   }
 
   Future<void> _openComparisonPicker() async {
+    final state = ref.read(weatherDashboardControllerProvider);
     final picked = await showModalBottomSheet<WeatherLocation>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
         return LocationSearchSheet(
-          repository: _repository,
-          selectedLocation: _controller.comparisonLocation ?? _controller.selectedLocation,
+          repository: ref.read(weatherRepositoryProvider),
+          selectedLocation: state.comparisonLocation ?? state.selectedLocation,
         );
       },
     );
 
     if (picked != null) {
-      await _controller.setComparisonLocation(picked);
+      await ref
+          .read(weatherDashboardControllerProvider.notifier)
+          .setComparisonLocation(picked);
     }
   }
 
@@ -107,180 +98,219 @@ class _WeatherDashboardPageState extends State<WeatherDashboardPage> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
-        return DisplaySettingsSheet(
-          settings: widget.displaySettings,
-        );
+        return const DisplaySettingsSheet();
       },
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, _) {
-        if (_controller.isLoading && !_controller.hasData) {
-          return const _LoadingView();
-        }
+    final state = ref.watch(weatherDashboardControllerProvider);
+    if (state.isLoading && !state.hasData) {
+      return const _LoadingView();
+    }
 
-        if (!_controller.hasData) {
-          return _ErrorView(onRetry: _controller.refresh);
-        }
+    if (!state.hasData) {
+      return _ErrorView(
+        onRetry: () =>
+            ref.read(weatherDashboardControllerProvider.notifier).refresh(),
+      );
+    }
 
-        final report = _controller.report!;
-        final guidance = _controller.guidance!;
-        return Scaffold(
-          body: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: _pageBackgroundGradient(context),
-            ),
-            child: Stack(
-              children: <Widget>[
-                const _AmbientBackground(),
-                SafeArea(
-                  child: RefreshIndicator.adaptive(
-                    onRefresh: _controller.refresh,
-                    child: ListView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-                      children: <Widget>[
-                        _HeroCard(
-                          report: report,
-                          guidance: guidance,
-                          explanationMode: _controller.explanationMode,
-                          refreshing: _controller.isRefreshing,
-                          onRefresh: _controller.refresh,
-                          onPickLocation: _openLocationPicker,
-                          onOpenDisplaySettings: _openDisplaySettings,
-                          onExplanationModeChanged: (mode) {
-                            unawaited(_controller.setExplanationMode(mode));
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        _WidgetSummaryStrip(guidance: guidance),
-                        const SizedBox(height: 16),
-                        LayoutBuilder(
-                          builder: (context, constraints) {
-                            final wide = constraints.maxWidth >= 940;
-                            final leftColumn = <Widget>[
-                              _NextHourCard(
-                                report: report,
-                                guidance: guidance,
-                                explanationMode: _controller.explanationMode,
-                              ),
-                              const SizedBox(height: 16),
-                              _DryWindowCard(guidance: guidance),
-                              const SizedBox(height: 16),
-                              _DailyGuidanceCard(
-                                guidance: guidance,
-                                explanationMode: _controller.explanationMode,
-                              ),
-                              const SizedBox(height: 16),
-                              _WeekendPlannerCard(guidance: guidance),
-                              const SizedBox(height: 16),
-                              _WearCard(guidance: guidance),
-                              const SizedBox(height: 16),
-                              _RiskCard(guidance: guidance),
-                            ];
-                            final rightColumn = <Widget>[
-                              _HourlyStripCard(
-                                guidance: guidance,
-                                explanationMode: _controller.explanationMode,
-                              ),
-                              const SizedBox(height: 16),
-                              _CompareCitiesCard(
-                                primaryReport: report,
-                                primaryGuidance: guidance,
-                                comparisonLocation: _controller.comparisonLocation,
-                                comparisonReport: _controller.comparisonReport,
-                                comparisonGuidance: _controller.comparisonGuidance,
-                                onChooseLocation: _openComparisonPicker,
-                                onClear: _controller.clearComparisonLocation,
-                              ),
-                              const SizedBox(height: 16),
-                              _CommuteCard(
-                                guidance: guidance,
-                                onManageWindows: _openCommuteWindowManager,
-                              ),
-                              const SizedBox(height: 16),
-                              _ActivitiesCard(guidance: guidance),
-                              const SizedBox(height: 16),
-                              _FooterNote(report: report),
-                            ];
-                            final narrowCards = <Widget>[
-                              _NextHourCard(
-                                report: report,
-                                guidance: guidance,
-                                explanationMode: _controller.explanationMode,
-                              ),
-                              const SizedBox(height: 16),
-                              _HourlyStripCard(
-                                guidance: guidance,
-                                explanationMode: _controller.explanationMode,
-                              ),
-                              const SizedBox(height: 16),
-                              _DryWindowCard(guidance: guidance),
-                              const SizedBox(height: 16),
-                              _DailyGuidanceCard(
-                                guidance: guidance,
-                                explanationMode: _controller.explanationMode,
-                              ),
-                              const SizedBox(height: 16),
-                              _CompareCitiesCard(
-                                primaryReport: report,
-                                primaryGuidance: guidance,
-                                comparisonLocation: _controller.comparisonLocation,
-                                comparisonReport: _controller.comparisonReport,
-                                comparisonGuidance: _controller.comparisonGuidance,
-                                onChooseLocation: _openComparisonPicker,
-                                onClear: _controller.clearComparisonLocation,
-                              ),
-                              const SizedBox(height: 16),
-                              _WeekendPlannerCard(guidance: guidance),
-                              const SizedBox(height: 16),
-                              _CommuteCard(
-                                guidance: guidance,
-                                onManageWindows: _openCommuteWindowManager,
-                              ),
-                              const SizedBox(height: 16),
-                              _WearCard(guidance: guidance),
-                              const SizedBox(height: 16),
-                              _ActivitiesCard(guidance: guidance),
-                              const SizedBox(height: 16),
-                              _RiskCard(guidance: guidance),
-                              const SizedBox(height: 16),
-                              _FooterNote(report: report),
-                            ];
-
-                            if (!wide) {
-                              return Column(children: narrowCards);
-                            }
-
-                            return Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: <Widget>[
-                                Expanded(
-                                  child: Column(children: leftColumn),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(children: rightColumn),
-                                ),
-                              ],
-                            );
-                          },
-                        ),
-                      ],
+    final report = state.report!;
+    final guidance = state.guidance!;
+    final priorityRisk = _shouldPinRisk(guidance);
+    final detailCards = <Widget>[
+      _HourlyStripCard(
+        guidance: guidance,
+        explanationMode: state.explanationMode,
+      ),
+      const SizedBox(height: 16),
+      _ActivitiesCard(guidance: guidance),
+      const SizedBox(height: 16),
+      if (!priorityRisk) ...<Widget>[
+        _RiskCard(guidance: guidance),
+        const SizedBox(height: 16),
+      ],
+      _WidgetSummaryStrip(guidance: guidance),
+    ];
+    return Scaffold(
+      body: DecoratedBox(
+        decoration: BoxDecoration(gradient: _pageBackgroundGradient(context)),
+        child: Stack(
+          children: <Widget>[
+            const _AmbientBackground(),
+            SafeArea(
+              child: RefreshIndicator.adaptive(
+                onRefresh: () => ref
+                    .read(weatherDashboardControllerProvider.notifier)
+                    .refresh(),
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                  children: <Widget>[
+                    _HeroCard(
+                      report: report,
+                      guidance: guidance,
+                      explanationMode: state.explanationMode,
+                      refreshing: state.isRefreshing,
+                      onRefresh: () => ref
+                          .read(weatherDashboardControllerProvider.notifier)
+                          .refresh(),
+                      onPickLocation: _openLocationPicker,
+                      onOpenDisplaySettings: _openDisplaySettings,
                     ),
-                  ),
+                    const SizedBox(height: 16),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final wide = constraints.maxWidth >= 940;
+                        final leftColumn = <Widget>[
+                          _NextHourCard(
+                            report: report,
+                            guidance: guidance,
+                            explanationMode: state.explanationMode,
+                          ),
+                          const SizedBox(height: 16),
+                          _DryWindowCard(guidance: guidance),
+                          const SizedBox(height: 16),
+                          _DailyGuidanceCard(
+                            guidance: guidance,
+                            explanationMode: state.explanationMode,
+                          ),
+                          const SizedBox(height: 16),
+                          if (priorityRisk) ...<Widget>[
+                            _RiskCard(guidance: guidance),
+                            const SizedBox(height: 16),
+                          ],
+                          _CommuteCard(
+                            guidance: guidance,
+                            onManageWindows: _openCommuteWindowManager,
+                          ),
+                          const SizedBox(height: 16),
+                          _WearCard(guidance: guidance),
+                        ];
+                        final rightColumn = <Widget>[
+                          _WeekendPlannerCard(guidance: guidance),
+                          const SizedBox(height: 16),
+                          _CompareCitiesCard(
+                            primaryReport: report,
+                            primaryGuidance: guidance,
+                            comparisonLocation: state.comparisonLocation,
+                            comparisonReport: state.comparisonReport,
+                            comparisonGuidance: state.comparisonGuidance,
+                            onChooseLocation: _openComparisonPicker,
+                            onClear: () => ref
+                                .read(
+                                  weatherDashboardControllerProvider.notifier,
+                                )
+                                .clearComparisonLocation(),
+                          ),
+                          const SizedBox(height: 16),
+                          _DetailToggleCard(
+                            expanded: _showMoreDetail,
+                            includesRisk: !priorityRisk,
+                            onToggle: () {
+                              setState(() {
+                                _showMoreDetail = !_showMoreDetail;
+                              });
+                            },
+                          ),
+                          if (_showMoreDetail) ...<Widget>[
+                            const SizedBox(height: 16),
+                            ...detailCards,
+                          ],
+                          const SizedBox(height: 16),
+                          _FooterNote(report: report),
+                        ];
+                        final narrowCards = <Widget>[
+                          _NextHourCard(
+                            report: report,
+                            guidance: guidance,
+                            explanationMode: state.explanationMode,
+                          ),
+                          const SizedBox(height: 16),
+                          _DryWindowCard(guidance: guidance),
+                          const SizedBox(height: 16),
+                          _DailyGuidanceCard(
+                            guidance: guidance,
+                            explanationMode: state.explanationMode,
+                          ),
+                          const SizedBox(height: 16),
+                          if (priorityRisk) ...<Widget>[
+                            _RiskCard(guidance: guidance),
+                            const SizedBox(height: 16),
+                          ],
+                          _CommuteCard(
+                            guidance: guidance,
+                            onManageWindows: _openCommuteWindowManager,
+                          ),
+                          const SizedBox(height: 16),
+                          _WearCard(guidance: guidance),
+                          const SizedBox(height: 16),
+                          _WeekendPlannerCard(guidance: guidance),
+                          const SizedBox(height: 16),
+                          _CompareCitiesCard(
+                            primaryReport: report,
+                            primaryGuidance: guidance,
+                            comparisonLocation: state.comparisonLocation,
+                            comparisonReport: state.comparisonReport,
+                            comparisonGuidance: state.comparisonGuidance,
+                            onChooseLocation: _openComparisonPicker,
+                            onClear: () => ref
+                                .read(
+                                  weatherDashboardControllerProvider.notifier,
+                                )
+                                .clearComparisonLocation(),
+                          ),
+                          const SizedBox(height: 16),
+                          _DetailToggleCard(
+                            expanded: _showMoreDetail,
+                            includesRisk: !priorityRisk,
+                            onToggle: () {
+                              setState(() {
+                                _showMoreDetail = !_showMoreDetail;
+                              });
+                            },
+                          ),
+                          if (_showMoreDetail) ...<Widget>[
+                            const SizedBox(height: 16),
+                            ...detailCards,
+                            const SizedBox(height: 16),
+                          ],
+                          const SizedBox(height: 16),
+                          _FooterNote(report: report),
+                        ];
+
+                        if (!wide) {
+                          return Column(children: narrowCards);
+                        }
+
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Expanded(child: Column(children: leftColumn)),
+                            const SizedBox(width: 16),
+                            Expanded(child: Column(children: rightColumn)),
+                          ],
+                        );
+                      },
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
-          ),
-        );
-      },
+          ],
+        ),
+      ),
     );
   }
+}
+
+bool _shouldPinRisk(WeatherGuidance guidance) {
+  return guidance.risks.any(
+    (risk) =>
+        risk.level == RiskLevel.high || risk.source == AlertSource.official,
+  );
 }
 
 LinearGradient _pageBackgroundGradient(BuildContext context) {
@@ -298,18 +328,11 @@ LinearGradient _pageBackgroundGradient(BuildContext context) {
       : const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: <Color>[
-            AppPalette.dawn,
-            Color(0xFFF7FBFE),
-            AppPalette.pearl,
-          ],
+          colors: <Color>[AppPalette.dawn, Color(0xFFF7FBFE), AppPalette.pearl],
         );
 }
 
-LinearGradient _glassGradient(
-  BuildContext context, {
-  bool prominent = false,
-}) {
+LinearGradient _glassGradient(BuildContext context, {bool prominent = false}) {
   final isDark = Theme.of(context).brightness == Brightness.dark;
   if (isDark && prominent) {
     return LinearGradient(
@@ -335,19 +358,13 @@ LinearGradient _glassGradient(
     return const LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: <Color>[
-        Color(0xF9FFFFFF),
-        Color(0xF3F3FAFF),
-      ],
+      colors: <Color>[Color(0xF9FFFFFF), Color(0xF3F3FAFF)],
     );
   }
   return const LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: <Color>[
-      Color(0xF7FFFFFF),
-      Color(0xEEF1F7FB),
-    ],
+    colors: <Color>[Color(0xF7FFFFFF), Color(0xEEF1F7FB)],
   );
 }
 
@@ -356,9 +373,7 @@ Color _surfaceFill(BuildContext context, {bool strong = false}) {
   if (isDark) {
     return Colors.white.withValues(alpha: strong ? 0.08 : 0.05);
   }
-  return strong
-      ? const Color(0xFFF9FCFF)
-      : const Color(0xF2FFFFFF);
+  return strong ? const Color(0xFFF9FCFF) : const Color(0xF2FFFFFF);
 }
 
 Color _surfaceBorder(BuildContext context) {
@@ -380,7 +395,11 @@ Color _sheetHandle(BuildContext context) {
       : AppPalette.ink.withValues(alpha: 0.18);
 }
 
-Color _ambientOrbColor(BuildContext context, Color darkColor, Color lightColor) {
+Color _ambientOrbColor(
+  BuildContext context,
+  Color darkColor,
+  Color lightColor,
+) {
   final isDark = Theme.of(context).brightness == Brightness.dark;
   return isDark ? darkColor : lightColor;
 }
@@ -462,10 +481,7 @@ String _hourlyOutlookLabel(HourlyForecast slot) {
   if (slot.precipitationMm >= 0.08 || slot.precipitationProbability >= 35) {
     return 'Showers';
   }
-  final descriptor = describeWeatherCode(
-    slot.weatherCode,
-    isDay: slot.isDay,
-  );
+  final descriptor = describeWeatherCode(slot.weatherCode, isDay: slot.isDay);
   if (descriptor.label.toLowerCase().contains('clear') ||
       descriptor.label.toLowerCase().contains('sun')) {
     return 'Bright';
@@ -481,23 +497,23 @@ int _outdoorReadinessScore(WeatherReport report, WeatherGuidance guidance) {
   score += guidance.nextHour.tone == AdviceTone.go
       ? 12
       : guidance.nextHour.tone == AdviceTone.watch
-          ? 3
-          : -12;
+      ? 3
+      : -12;
   score += guidance.dryWindow.isAvailable
       ? guidance.dryWindow.duration.inMinutes >= 120
-          ? 14
-          : 6
+            ? 14
+            : 6
       : -8;
   score -= report.today.precipitationProbabilityMax >= 70
       ? 16
       : report.today.precipitationProbabilityMax >= 40
-          ? 8
-          : 0;
+      ? 8
+      : 0;
   score -= report.today.maxWindKph >= 34
       ? 10
       : report.today.maxWindKph >= 24
-          ? 5
-          : 0;
+      ? 5
+      : 0;
   score += report.today.maxTempC >= 13 && report.today.maxTempC <= 22 ? 5 : 0;
   return score.clamp(0, 100);
 }
@@ -509,12 +525,17 @@ String _comparisonHeadline(
   WeatherGuidance comparisonGuidance,
 ) {
   final primaryScore = _outdoorReadinessScore(primaryReport, primaryGuidance);
-  final comparisonScore = _outdoorReadinessScore(comparisonReport, comparisonGuidance);
+  final comparisonScore = _outdoorReadinessScore(
+    comparisonReport,
+    comparisonGuidance,
+  );
   final diff = (primaryScore - comparisonScore).abs();
   if (diff < 8) {
     return 'Both cities look fairly close today';
   }
-  final winner = primaryScore > comparisonScore ? primaryReport.location.name : comparisonReport.location.name;
+  final winner = primaryScore > comparisonScore
+      ? primaryReport.location.name
+      : comparisonReport.location.name;
   return '$winner looks like the easier outdoor choice';
 }
 
@@ -527,11 +548,14 @@ String _comparisonDetail(
   final warmer = primaryReport.today.maxTempC >= comparisonReport.today.maxTempC
       ? primaryReport.location.name
       : comparisonReport.location.name;
-  final drier = primaryReport.today.precipitationProbabilityMax <=
+  final drier =
+      primaryReport.today.precipitationProbabilityMax <=
           comparisonReport.today.precipitationProbabilityMax
       ? primaryReport.location.name
       : comparisonReport.location.name;
-  final betterDrySlot = primaryGuidance.dryWindow.duration >= comparisonGuidance.dryWindow.duration
+  final betterDrySlot =
+      primaryGuidance.dryWindow.duration >=
+          comparisonGuidance.dryWindow.duration
       ? primaryReport.location.name
       : comparisonReport.location.name;
   return '$warmer is warmer, $drier has the lower rain risk, and $betterDrySlot has the stronger dry slot.';
@@ -546,7 +570,6 @@ class _HeroCard extends StatelessWidget {
     required this.onRefresh,
     required this.onPickLocation,
     required this.onOpenDisplaySettings,
-    required this.onExplanationModeChanged,
   });
 
   final WeatherReport report;
@@ -556,7 +579,6 @@ class _HeroCard extends StatelessWidget {
   final Future<void> Function() onRefresh;
   final VoidCallback onPickLocation;
   final VoidCallback onOpenDisplaySettings;
-  final ValueChanged<ExplanationMode> onExplanationModeChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -646,7 +668,9 @@ class _HeroCard extends StatelessWidget {
               const SizedBox(width: 16),
               FilledButton.tonalIcon(
                 onPressed: refreshing ? null : onRefresh,
-                icon: Icon(refreshing ? Icons.sync_rounded : Icons.refresh_rounded),
+                icon: Icon(
+                  refreshing ? Icons.sync_rounded : Icons.refresh_rounded,
+                ),
                 label: Text(refreshing ? 'Refreshing' : 'Refresh'),
               ),
               const SizedBox(width: 10),
@@ -667,100 +691,23 @@ class _HeroCard extends StatelessWidget {
                 label: report.location.name,
                 onTap: onPickLocation,
               ),
+              _SoftChip(icon: descriptor.icon, label: descriptor.label),
               _SoftChip(
-                icon: descriptor.icon,
-                label: descriptor.label,
+                icon: report.usingFallback
+                    ? Icons.dataset_outlined
+                    : Icons.cloud_sync_rounded,
+                label: report.sourceLabel,
               ),
               _SoftChip(
-                icon: report.usingFallback ? Icons.dataset_outlined : Icons.cloud_sync_rounded,
-                label: report.sourceLabel,
+                icon: explanationMode == ExplanationMode.simple
+                    ? Icons.auto_awesome_outlined
+                    : Icons.tune_rounded,
+                label: '${explanationMode.label} guidance',
+                onTap: onOpenDisplaySettings,
               ),
             ],
           ),
-          const SizedBox(height: 18),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: _surfaceFill(context),
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: _surfaceBorder(context)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Container(
-                      height: 42,
-                      width: 42,
-                      decoration: BoxDecoration(
-                        color: _surfaceFill(context, strong: true),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Icon(
-                        explanationMode == ExplanationMode.simple
-                            ? Icons.chat_bubble_outline_rounded
-                            : Icons.tune_rounded,
-                        color: AppPalette.sky,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Text('Explanation mode', style: theme.textTheme.titleMedium),
-                          const SizedBox(height: 2),
-                          Text(
-                            explanationMode.description,
-                            style: theme.textTheme.bodySmall,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                SegmentedButton<ExplanationMode>(
-                  showSelectedIcon: false,
-                  segments: const <ButtonSegment<ExplanationMode>>[
-                    ButtonSegment<ExplanationMode>(
-                      value: ExplanationMode.simple,
-                      icon: Icon(Icons.auto_awesome_outlined),
-                      label: Text('Simple'),
-                    ),
-                    ButtonSegment<ExplanationMode>(
-                      value: ExplanationMode.detailed,
-                      icon: Icon(Icons.tune_rounded),
-                      label: Text('Detailed'),
-                    ),
-                  ],
-                  selected: <ExplanationMode>{explanationMode},
-                  onSelectionChanged: (selection) {
-                    if (selection.isNotEmpty) {
-                      onExplanationModeChanged(selection.first);
-                    }
-                  },
-                  style: ButtonStyle(
-                    foregroundColor: WidgetStateProperty.resolveWith(
-                      (states) => Colors.white,
-                    ),
-                    backgroundColor: WidgetStateProperty.resolveWith((states) {
-                      if (states.contains(WidgetState.selected)) {
-                      return AppPalette.sky.withValues(alpha: 0.18);
-                      }
-                      return _surfaceFill(context);
-                    }),
-                    side: WidgetStateProperty.resolveWith(
-                      (states) => BorderSide(color: _surfaceBorder(context)),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 28),
+          const SizedBox(height: 24),
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: <Widget>[
@@ -778,10 +725,7 @@ class _HeroCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Text(
-                      descriptor.summary,
-                      style: theme.textTheme.titleLarge,
-                    ),
+                    Text(descriptor.summary, style: theme.textTheme.titleLarge),
                     const SizedBox(height: 4),
                     Text(
                       guidance.simpleSummary,
@@ -798,11 +742,7 @@ class _HeroCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 22),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: metricTiles,
-          ),
+          Wrap(spacing: 12, runSpacing: 12, children: metricTiles),
           const SizedBox(height: 20),
           Row(
             children: <Widget>[
@@ -837,20 +777,25 @@ class _WidgetSummaryStrip extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           const _SectionHeader(
-            eyebrow: 'Clean Widgets',
-            title: 'Widget-ready home summaries',
+            eyebrow: 'Home Widgets',
+            title: 'What will your quick-glance cards say?',
             icon: Icons.widgets_outlined,
           ),
           const SizedBox(height: 18),
           Wrap(
             spacing: 12,
             runSpacing: 12,
-            children: guidance.homeCards.map((card) {
-              return ConstrainedBox(
-                constraints: const BoxConstraints(minWidth: 220, maxWidth: 280),
-                child: _WidgetSummaryTile(card: card),
-              );
-            }).toList(growable: false),
+            children: guidance.homeCards
+                .map((card) {
+                  return ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      minWidth: 220,
+                      maxWidth: 280,
+                    ),
+                    child: _WidgetSummaryTile(card: card),
+                  );
+                })
+                .toList(growable: false),
           ),
         ],
       ),
@@ -874,7 +819,8 @@ class _NextHourCard extends StatelessWidget {
     final slots = report.minutely.take(4).toList(growable: false);
     final maxPrecipitation = slots.fold<double>(
       0,
-      (value, slot) => value > slot.precipitationMm ? value : slot.precipitationMm,
+      (value, slot) =>
+          value > slot.precipitationMm ? value : slot.precipitationMm,
     );
 
     return GlassCard(
@@ -883,67 +829,86 @@ class _NextHourCard extends StatelessWidget {
         children: <Widget>[
           const _SectionHeader(
             eyebrow: 'Next Hour Rain',
-            title: 'Should you head out now?',
+            title: 'Can you head out now?',
             icon: Icons.timeline_rounded,
           ),
           const SizedBox(height: 10),
-          Text(guidance.nextHour.title, style: Theme.of(context).textTheme.headlineSmall),
+          Text(
+            guidance.nextHour.title,
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
           const SizedBox(height: 6),
-          Text(guidance.nextHour.detail, style: Theme.of(context).textTheme.bodyMedium),
+          Text(
+            guidance.nextHour.detail,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
           const SizedBox(height: 20),
           SizedBox(
             height: 130,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
-              children: slots.map((slot) {
-                final normalized = maxPrecipitation == 0
-                    ? 0.12
-                    : (slot.precipitationMm / maxPrecipitation).clamp(0.14, 1.0);
-                final isWet = slot.precipitationMm >= 0.08;
-                return Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 5),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: <Widget>[
-                        Text(
-                          formatRain(slot.precipitationMm),
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                        const SizedBox(height: 8),
-                        AnimatedContainer(
-                          duration: const Duration(milliseconds: 500),
-                          curve: Curves.easeOutCubic,
-                          height: 18 + normalized * 62,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.bottomCenter,
-                              end: Alignment.topCenter,
-                              colors: <Color>[
-                                isWet ? AppPalette.sky : AppPalette.teal.withValues(alpha: 0.72),
-                                Colors.white.withValues(alpha: 0.9),
-                              ],
+              children: slots
+                  .map((slot) {
+                    final normalized = maxPrecipitation == 0
+                        ? 0.12
+                        : (slot.precipitationMm / maxPrecipitation).clamp(
+                            0.14,
+                            1.0,
+                          );
+                    final isWet = slot.precipitationMm >= 0.08;
+                    return Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 5),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: <Widget>[
+                            Text(
+                              formatRain(slot.precipitationMm),
+                              style: Theme.of(context).textTheme.bodySmall,
                             ),
-                            borderRadius: BorderRadius.circular(18),
-                            boxShadow: <BoxShadow>[
-                              BoxShadow(
-                                color: AppPalette.sky.withValues(alpha: 0.22),
-                                blurRadius: 16,
-                                offset: const Offset(0, 8),
+                            const SizedBox(height: 8),
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 500),
+                              curve: Curves.easeOutCubic,
+                              height: 18 + normalized * 62,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.bottomCenter,
+                                  end: Alignment.topCenter,
+                                  colors: <Color>[
+                                    isWet
+                                        ? AppPalette.sky
+                                        : AppPalette.teal.withValues(
+                                            alpha: 0.72,
+                                          ),
+                                    Colors.white.withValues(alpha: 0.9),
+                                  ],
+                                ),
+                                borderRadius: BorderRadius.circular(18),
+                                boxShadow: <BoxShadow>[
+                                  BoxShadow(
+                                    color: AppPalette.sky.withValues(
+                                      alpha: 0.22,
+                                    ),
+                                    blurRadius: 16,
+                                    offset: const Offset(0, 8),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              slot == slots.first
+                                  ? 'Now'
+                                  : formatCompactClock(slot.time),
+                              style: Theme.of(context).textTheme.labelLarge,
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 10),
-                        Text(
-                          slot == slots.first ? 'Now' : formatCompactClock(slot.time),
-                          style: Theme.of(context).textTheme.labelLarge,
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }).toList(growable: false),
+                      ),
+                    );
+                  })
+                  .toList(growable: false),
             ),
           ),
           const SizedBox(height: 18),
@@ -952,14 +917,34 @@ class _NextHourCard extends StatelessWidget {
             runSpacing: 12,
             children: explanationMode == ExplanationMode.detailed
                 ? <Widget>[
-                    _MiniStat(label: 'Max burst', value: formatRain(guidance.nextHour.maxPrecipitationMm)),
-                    _MiniStat(label: 'Visibility', value: formatVisibility(report.current.visibilityMeters)),
-                    _MiniStat(label: 'Wind', value: formatWind(report.current.windSpeedKph)),
+                    _MiniStat(
+                      label: 'Max burst',
+                      value: formatRain(guidance.nextHour.maxPrecipitationMm),
+                    ),
+                    _MiniStat(
+                      label: 'Visibility',
+                      value: formatVisibility(report.current.visibilityMeters),
+                    ),
+                    _MiniStat(
+                      label: 'Wind',
+                      value: formatWind(report.current.windSpeedKph),
+                    ),
                   ]
                 : <Widget>[
-                    _MiniStat(label: 'Rain outlook', value: _rainSummary(guidance.nextHour.maxPrecipitationMm)),
-                    _MiniStat(label: 'Air clarity', value: _visibilitySummary(report.current.visibilityMeters)),
-                    _MiniStat(label: 'Wind feel', value: _windSummary(report.current.windSpeedKph)),
+                    _MiniStat(
+                      label: 'Rain outlook',
+                      value: _rainSummary(guidance.nextHour.maxPrecipitationMm),
+                    ),
+                    _MiniStat(
+                      label: 'Air clarity',
+                      value: _visibilitySummary(
+                        report.current.visibilityMeters,
+                      ),
+                    ),
+                    _MiniStat(
+                      label: 'Wind feel',
+                      value: _windSummary(report.current.windSpeedKph),
+                    ),
                   ],
           ),
         ],
@@ -982,7 +967,7 @@ class _DryWindowCard extends StatelessWidget {
         children: <Widget>[
           const _SectionHeader(
             eyebrow: 'Best Dry Window',
-            title: 'Use the cleanest part of the day',
+            title: 'When is the best time to head out?',
             icon: Icons.wb_sunny_outlined,
           ),
           const SizedBox(height: 14),
@@ -991,7 +976,9 @@ class _DryWindowCard extends StatelessWidget {
             style: Theme.of(context).textTheme.headlineSmall,
           ),
           const SizedBox(height: 8),
-          if (window.isAvailable && window.start != null && window.end != null) ...<Widget>[
+          if (window.isAvailable &&
+              window.start != null &&
+              window.end != null) ...<Widget>[
             Wrap(
               spacing: 10,
               runSpacing: 10,
@@ -1036,52 +1023,57 @@ class _HourlyStripCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           const _SectionHeader(
-            eyebrow: 'At A Glance',
-            title: 'Next six hours',
+            eyebrow: 'Next Six Hours',
+            title: 'How does the next stretch look?',
             icon: Icons.schedule_rounded,
           ),
           const SizedBox(height: 18),
           Wrap(
             spacing: 10,
             runSpacing: 10,
-            children: guidance.highlightHours.map((slot) {
-              final descriptor = describeWeatherCode(
-                slot.weatherCode,
-                isDay: slot.isDay,
-              );
-              return Container(
-                width: 94,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                decoration: BoxDecoration(
-                  color: _surfaceFill(context),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: _surfaceBorder(context)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      formatCompactClock(slot.time),
-                      style: Theme.of(context).textTheme.labelLarge,
+            children: guidance.highlightHours
+                .map((slot) {
+                  final descriptor = describeWeatherCode(
+                    slot.weatherCode,
+                    isDay: slot.isDay,
+                  );
+                  return Container(
+                    width: 94,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 14,
                     ),
-                    const SizedBox(height: 10),
-                    Icon(descriptor.icon, color: AppPalette.sky),
-                    const SizedBox(height: 10),
-                    Text(
-                      formatTemperature(slot.temperatureC),
-                      style: Theme.of(context).textTheme.titleLarge,
+                    decoration: BoxDecoration(
+                      color: _surfaceFill(context),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: _surfaceBorder(context)),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      explanationMode == ExplanationMode.detailed
-                          ? formatPercent(slot.precipitationProbability)
-                          : _hourlyOutlookLabel(slot),
-                      style: Theme.of(context).textTheme.bodySmall,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          formatCompactClock(slot.time),
+                          style: Theme.of(context).textTheme.labelLarge,
+                        ),
+                        const SizedBox(height: 10),
+                        Icon(descriptor.icon, color: AppPalette.sky),
+                        const SizedBox(height: 10),
+                        Text(
+                          formatTemperature(slot.temperatureC),
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          explanationMode == ExplanationMode.detailed
+                              ? formatPercent(slot.precipitationProbability)
+                              : _hourlyOutlookLabel(slot),
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              );
-            }).toList(growable: false),
+                  );
+                })
+                .toList(growable: false),
           ),
         ],
       ),
@@ -1105,10 +1097,8 @@ class _DailyGuidanceCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           _SectionHeader(
-            eyebrow: 'Simple Daily Guidance',
-            title: explanationMode == ExplanationMode.simple
-                ? 'Plain English, not weather jargon'
-                : 'Detailed weather mode',
+            eyebrow: 'Daily Advice',
+            title: 'What should you do today?',
             icon: Icons.chat_bubble_outline_rounded,
           ),
           const SizedBox(height: 18),
@@ -1117,9 +1107,23 @@ class _DailyGuidanceCard extends StatelessWidget {
             style: Theme.of(context).textTheme.headlineSmall,
           ),
           const SizedBox(height: 10),
-          Text(
-            explanationMode.description,
-            style: Theme.of(context).textTheme.bodySmall,
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: <Widget>[
+              _TonePill(
+                tone: guidance.headline.tone,
+                label: guidance.headline.callToAction,
+              ),
+              _SoftChip(
+                icon: explanationMode == ExplanationMode.simple
+                    ? Icons.auto_awesome_outlined
+                    : Icons.tune_rounded,
+                label: explanationMode == ExplanationMode.simple
+                    ? 'Plain-English view'
+                    : 'Detailed weather view',
+              ),
+            ],
           ),
         ],
       ),
@@ -1141,7 +1145,7 @@ class _WeekendPlannerCard extends StatelessWidget {
         children: <Widget>[
           const _SectionHeader(
             eyebrow: 'Weekend Planner',
-            title: 'Pick the better day ahead',
+            title: 'Which weekend day looks better?',
             icon: Icons.calendar_view_week_rounded,
           ),
           const SizedBox(height: 18),
@@ -1152,7 +1156,7 @@ class _WeekendPlannerCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Dry Slots needs a longer-range forecast before it can guide weekend plans.',
+              'Dry Slots needs a longer-range forecast before it can steer weekend plans.',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
           ] else ...<Widget>[
@@ -1169,54 +1173,73 @@ class _WeekendPlannerCard extends StatelessWidget {
             Wrap(
               spacing: 12,
               runSpacing: 12,
-              children: planner.days.map((day) {
-                return ConstrainedBox(
-                  constraints: const BoxConstraints(minWidth: 240, maxWidth: 320),
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: _surfaceFill(context),
-                      borderRadius: BorderRadius.circular(22),
-                      border: Border.all(color: _surfaceBorder(context)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Row(
+              children: planner.days
+                  .map((day) {
+                    return ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        minWidth: 240,
+                        maxWidth: 320,
+                      ),
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: _surfaceFill(context),
+                          borderRadius: BorderRadius.circular(22),
+                          border: Border.all(color: _surfaceBorder(context)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: <Widget>[
-                            Container(
-                              height: 42,
-                              width: 42,
-                              decoration: BoxDecoration(
-                                color: _surfaceFill(context, strong: true),
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              child: Icon(day.icon, color: AppPalette.sky),
+                            Row(
+                              children: <Widget>[
+                                Container(
+                                  height: 42,
+                                  width: 42,
+                                  decoration: BoxDecoration(
+                                    color: _surfaceFill(context, strong: true),
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  child: Icon(day.icon, color: AppPalette.sky),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: <Widget>[
+                                      Text(
+                                        day.label,
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.titleMedium,
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        day.headline,
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.bodySmall,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                _TonePill(
+                                  tone: day.tone,
+                                  label: '${day.maxTempC.round()}°',
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: <Widget>[
-                                  Text(day.label, style: Theme.of(context).textTheme.titleMedium),
-                                  const SizedBox(height: 2),
-                                  Text(day.headline, style: Theme.of(context).textTheme.bodySmall),
-                                ],
-                              ),
-                            ),
-                            _TonePill(
-                              tone: day.tone,
-                              label: '${day.maxTempC.round()}°',
+                            const SizedBox(height: 12),
+                            Text(
+                              day.summary,
+                              style: Theme.of(context).textTheme.bodySmall,
                             ),
                           ],
                         ),
-                        const SizedBox(height: 12),
-                        Text(day.summary, style: Theme.of(context).textTheme.bodySmall),
-                      ],
-                    ),
-                  ),
-                );
-              }).toList(growable: false),
+                      ),
+                    );
+                  })
+                  .toList(growable: false),
             ),
           ],
         ],
@@ -1256,7 +1279,7 @@ class _CompareCitiesCard extends StatelessWidget {
               const Expanded(
                 child: _SectionHeader(
                   eyebrow: 'Compare Two Cities',
-                  title: 'See which place looks better',
+                  title: 'Which city looks better today?',
                   icon: Icons.compare_arrows_rounded,
                 ),
               ),
@@ -1269,14 +1292,15 @@ class _CompareCitiesCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 18),
-          if (comparisonReport == null || comparisonGuidance == null) ...<Widget>[
+          if (comparisonReport == null ||
+              comparisonGuidance == null) ...<Widget>[
             Text(
               'Compare today with another UK city',
               style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: 8),
             Text(
-              'Useful for checking where the better dry slot, calmer commute, or warmer plan window is.',
+              'Useful for checking where the better dry slot, calmer routine, or warmer window is.',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
           ] else ...<Widget>[
@@ -1352,10 +1376,7 @@ class _CompareCitiesCard extends StatelessWidget {
 }
 
 class _CommuteCard extends StatelessWidget {
-  const _CommuteCard({
-    required this.guidance,
-    required this.onManageWindows,
-  });
+  const _CommuteCard({required this.guidance, required this.onManageWindows});
 
   final WeatherGuidance guidance;
   final VoidCallback onManageWindows;
@@ -1372,7 +1393,7 @@ class _CommuteCard extends StatelessWidget {
               const Expanded(
                 child: _SectionHeader(
                   eyebrow: 'Favourite Routines',
-                  title: 'Your saved windows, scored daily',
+                  title: 'How do your routines look?',
                   icon: Icons.commute_rounded,
                 ),
               ),
@@ -1417,7 +1438,7 @@ class _WearCard extends StatelessWidget {
         children: <Widget>[
           const _SectionHeader(
             eyebrow: 'Outfit Suggestion',
-            title: 'Practical clothing guidance',
+            title: 'What should you wear?',
             icon: Icons.checkroom_rounded,
           ),
           const SizedBox(height: 18),
@@ -1481,9 +1502,15 @@ class _WearCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        Text(tip.title, style: Theme.of(context).textTheme.titleMedium),
+                        Text(
+                          tip.title,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
                         const SizedBox(height: 2),
-                        Text(tip.detail, style: Theme.of(context).textTheme.bodySmall),
+                        Text(
+                          tip.detail,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
                       ],
                     ),
                   ),
@@ -1491,6 +1518,77 @@ class _WearCard extends StatelessWidget {
               ),
             );
           }),
+        ],
+      ),
+    );
+  }
+}
+
+class _DetailToggleCard extends StatelessWidget {
+  const _DetailToggleCard({
+    required this.expanded,
+    required this.includesRisk,
+    required this.onToggle,
+  });
+
+  final bool expanded;
+  final bool includesRisk;
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const _SectionHeader(
+            eyebrow: 'More Detail',
+            title: 'Need the fuller picture?',
+            icon: Icons.unfold_more_rounded,
+          ),
+          const SizedBox(height: 14),
+          Text(
+            expanded
+                ? 'Extra forecast detail is open below. Collapse it again when you want a calmer view.'
+                : includesRisk
+                ? 'Open the next-six-hours view, activity scores, quieter alerts, and widget cards without crowding the main dashboard.'
+                : 'Open the next-six-hours view, activity scores, and widget cards without crowding the main dashboard.',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: <Widget>[
+              const _SoftChip(
+                icon: Icons.schedule_rounded,
+                label: 'Next 6 hours',
+              ),
+              const _SoftChip(
+                icon: Icons.event_available_rounded,
+                label: 'Activities',
+              ),
+              if (includesRisk)
+                const _SoftChip(
+                  icon: Icons.warning_amber_rounded,
+                  label: 'Alerts',
+                ),
+              const _SoftChip(
+                icon: Icons.widgets_outlined,
+                label: 'Home widgets',
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          FilledButton.tonalIcon(
+            onPressed: onToggle,
+            icon: Icon(
+              expanded
+                  ? Icons.visibility_off_rounded
+                  : Icons.visibility_rounded,
+            ),
+            label: Text(expanded ? 'Hide extra detail' : 'Show more detail'),
+          ),
         ],
       ),
     );
@@ -1510,19 +1608,24 @@ class _ActivitiesCard extends StatelessWidget {
         children: <Widget>[
           const _SectionHeader(
             eyebrow: 'Activity Scores',
-            title: 'Simple scores out of 10',
+            title: 'What can you do outside?',
             icon: Icons.event_available_rounded,
           ),
           const SizedBox(height: 18),
           Wrap(
             spacing: 12,
             runSpacing: 12,
-            children: guidance.activities.map((activity) {
-              return ConstrainedBox(
-                constraints: const BoxConstraints(minWidth: 240, maxWidth: 320),
-                child: _ActivityTile(activity: activity),
-              );
-            }).toList(growable: false),
+            children: guidance.activities
+                .map((activity) {
+                  return ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      minWidth: 240,
+                      maxWidth: 320,
+                    ),
+                    child: _ActivityTile(activity: activity),
+                  );
+                })
+                .toList(growable: false),
           ),
         ],
       ),
@@ -1543,7 +1646,7 @@ class _RiskCard extends StatelessWidget {
         children: <Widget>[
           const _SectionHeader(
             eyebrow: 'Severe Weather Alerts',
-            title: 'Forecast risks and official warnings',
+            title: 'Anything to watch for?',
             icon: Icons.warning_amber_rounded,
           ),
           const SizedBox(height: 18),
@@ -1571,14 +1674,17 @@ class _RiskCard extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
-                          Text(risk.title, style: Theme.of(context).textTheme.titleMedium),
-                          const SizedBox(height: 4),
-                          Text(risk.detail, style: Theme.of(context).textTheme.bodySmall),
-                          const SizedBox(height: 8),
-                          _SourcePill(
-                            label: risk.sourceLabel,
-                            color: color,
+                          Text(
+                            risk.title,
+                            style: Theme.of(context).textTheme.titleMedium,
                           ),
+                          const SizedBox(height: 4),
+                          Text(
+                            risk.detail,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          const SizedBox(height: 8),
+                          _SourcePill(label: risk.sourceLabel, color: color),
                         ],
                       ),
                     ),
@@ -1634,7 +1740,10 @@ class _CommuteTile extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Text(leg.label, style: Theme.of(context).textTheme.titleLarge),
+                    Text(
+                      leg.label,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
                     const SizedBox(height: 4),
                     Text(
                       leg.summary,
@@ -1643,14 +1752,14 @@ class _CommuteTile extends StatelessWidget {
                   ],
                 ),
               ),
-              _TonePill(
-                tone: leg.tone,
-                label: '${leg.score}/100',
-              ),
+              _TonePill(tone: leg.tone, label: '${leg.score}/100'),
             ],
           ),
           const SizedBox(height: 10),
-          Text(formatTimeRange(leg.start, leg.end), style: Theme.of(context).textTheme.labelLarge),
+          Text(
+            formatTimeRange(leg.start, leg.end),
+            style: Theme.of(context).textTheme.labelLarge,
+          ),
           const SizedBox(height: 8),
           Text(leg.detail, style: Theme.of(context).textTheme.bodySmall),
         ],
@@ -1691,13 +1800,13 @@ class _ComparisonCityTile extends StatelessWidget {
           Row(
             children: <Widget>[
               Expanded(
-                child: Text(location.name, style: Theme.of(context).textTheme.titleLarge),
+                child: Text(
+                  location.name,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
               ),
               if (isPrimary)
-                _SourcePill(
-                  label: 'Current',
-                  color: AppPalette.sky,
-                ),
+                _SourcePill(label: 'Current', color: AppPalette.sky),
             ],
           ),
           const SizedBox(height: 8),
@@ -1756,19 +1865,26 @@ class _ActivityTile extends StatelessWidget {
               Icon(activity.icon, color: color),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(activity.name, style: Theme.of(context).textTheme.titleMedium),
+                child: Text(
+                  activity.name,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
               ),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: <Widget>[
                   Text(
                     '${activity.score}/10',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(color: color),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.titleLarge?.copyWith(color: color),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     label,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: color),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: color),
                   ),
                 ],
               ),
@@ -1826,10 +1942,7 @@ class _WidgetSummaryTile extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-          Text(
-            card.value,
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
+          Text(card.value, style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 8),
           Text(
             card.detail,
@@ -1844,10 +1957,7 @@ class _WidgetSummaryTile extends StatelessWidget {
 }
 
 class _SourcePill extends StatelessWidget {
-  const _SourcePill({
-    required this.label,
-    required this.color,
-  });
+  const _SourcePill({required this.label, required this.color});
 
   final String label;
   final Color color;
@@ -1965,11 +2075,7 @@ class _TonePill extends StatelessWidget {
 }
 
 class _SoftChip extends StatelessWidget {
-  const _SoftChip({
-    required this.icon,
-    required this.label,
-    this.onTap,
-  });
+  const _SoftChip({required this.icon, required this.label, this.onTap});
 
   final IconData icon;
   final String label;
@@ -2007,11 +2113,7 @@ class _SoftChip extends StatelessWidget {
 }
 
 class GlassCard extends StatelessWidget {
-  const GlassCard({
-    super.key,
-    required this.child,
-    this.gradient,
-  });
+  const GlassCard({super.key, required this.child, this.gradient});
 
   final Widget child;
   final Gradient? gradient;
@@ -2074,7 +2176,9 @@ class _SectionHeader extends StatelessWidget {
             children: <Widget>[
               Text(
                 eyebrow,
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(color: AppPalette.sky),
+                style: Theme.of(
+                  context,
+                ).textTheme.labelMedium?.copyWith(color: AppPalette.sky),
               ),
               const SizedBox(height: 4),
               Text(title, style: Theme.of(context).textTheme.titleLarge),
@@ -2093,9 +2197,7 @@ class _LoadingView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: _pageBackgroundGradient(context),
-        ),
+        decoration: BoxDecoration(gradient: _pageBackgroundGradient(context)),
         child: Stack(
           children: <Widget>[
             const _AmbientBackground(),
@@ -2108,7 +2210,7 @@ class _LoadingView extends StatelessWidget {
                     const CircularProgressIndicator(strokeWidth: 3),
                     const SizedBox(height: 22),
                     Text(
-                      'Building your weather day plan...',
+                      'Working out today\'s best weather windows...',
                       textAlign: TextAlign.center,
                     ),
                   ],
@@ -2131,9 +2233,7 @@ class _ErrorView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: _pageBackgroundGradient(context),
-        ),
+        decoration: BoxDecoration(gradient: _pageBackgroundGradient(context)),
         child: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -2141,12 +2241,19 @@ class _ErrorView extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
-                  const Icon(Icons.cloud_off_rounded, size: 44, color: AppPalette.coral),
+                  const Icon(
+                    Icons.cloud_off_rounded,
+                    size: 44,
+                    color: AppPalette.coral,
+                  ),
                   const SizedBox(height: 16),
-                  Text('Weather feed unavailable', style: Theme.of(context).textTheme.headlineSmall),
+                  Text(
+                    'Weather feed unavailable',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
                   const SizedBox(height: 8),
                   Text(
-                    'Dry Slots could not load the forecast. Try again in a moment.',
+                    'Dry Slots could not load today\'s forecast. Try again in a moment.',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
@@ -2230,150 +2337,190 @@ class _GlowOrb extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: RadialGradient(
-          colors: <Color>[
-            color,
-            color.withValues(alpha: 0),
-          ],
+          colors: <Color>[color, color.withValues(alpha: 0)],
         ),
       ),
     );
   }
 }
 
-class DisplaySettingsSheet extends StatelessWidget {
-  const DisplaySettingsSheet({
-    super.key,
-    required this.settings,
-  });
-
-  final DisplaySettingsController settings;
+class DisplaySettingsSheet extends ConsumerWidget {
+  const DisplaySettingsSheet({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: settings,
-      builder: (context, _) {
-        return Container(
-          decoration: BoxDecoration(
-            color: _sheetBackground(context),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
-            border: Border.all(color: _surfaceBorder(context)),
-          ),
-          child: SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Center(
-                    child: Container(
-                      height: 5,
-                      width: 46,
-                      decoration: BoxDecoration(
-                        color: _sheetHandle(context),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                    ),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(displaySettingsControllerProvider);
+    final dashboard = ref.watch(weatherDashboardControllerProvider);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: _sheetBackground(context),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+        border: Border.all(color: _surfaceBorder(context)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Center(
+                child: Container(
+                  height: 5,
+                  width: 46,
+                  decoration: BoxDecoration(
+                    color: _sheetHandle(context),
+                    borderRadius: BorderRadius.circular(999),
                   ),
-                  const SizedBox(height: 18),
-                  Text(
-                    'Display settings',
-                    style: Theme.of(context).textTheme.headlineSmall,
+                ),
+              ),
+              const SizedBox(height: 18),
+              Text(
+                'Display settings',
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Keep the app calm by default, switch on deeper forecast detail when you want it, and tune readability to suit you.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 18),
+              Text(
+                'Weather detail',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 10),
+              SegmentedButton<ExplanationMode>(
+                showSelectedIcon: false,
+                segments: const <ButtonSegment<ExplanationMode>>[
+                  ButtonSegment<ExplanationMode>(
+                    value: ExplanationMode.simple,
+                    icon: Icon(Icons.auto_awesome_outlined),
+                    label: Text('Simple'),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Choose a calmer light or dark look and switch on larger text for easier reading.',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: 18),
-                  Text('Theme mode', style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 10),
-                  SegmentedButton<ThemeMode>(
-                    showSelectedIcon: false,
-                    segments: const <ButtonSegment<ThemeMode>>[
-                      ButtonSegment<ThemeMode>(
-                        value: ThemeMode.system,
-                        icon: Icon(Icons.brightness_auto_rounded),
-                        label: Text('Adaptive'),
-                      ),
-                      ButtonSegment<ThemeMode>(
-                        value: ThemeMode.light,
-                        icon: Icon(Icons.light_mode_rounded),
-                        label: Text('Light'),
-                      ),
-                      ButtonSegment<ThemeMode>(
-                        value: ThemeMode.dark,
-                        icon: Icon(Icons.dark_mode_rounded),
-                        label: Text('Dark'),
-                      ),
-                    ],
-                    selected: <ThemeMode>{settings.themeMode},
-                    onSelectionChanged: (selection) {
-                      if (selection.isNotEmpty) {
-                        unawaited(settings.setThemeMode(selection.first));
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 18),
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: _surfaceFill(context),
-                      borderRadius: BorderRadius.circular(22),
-                      border: Border.all(color: _surfaceBorder(context)),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Container(
-                          height: 42,
-                          width: 42,
-                          decoration: BoxDecoration(
-                            color: _surfaceFill(context, strong: true),
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: const Icon(Icons.text_fields_rounded, color: AppPalette.sky),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: <Widget>[
-                              Text('Large text mode', style: Theme.of(context).textTheme.titleMedium),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Improves legibility across cards, sheets, and summaries.',
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                            ],
-                          ),
-                        ),
-                        Switch.adaptive(
-                          value: settings.largeText,
-                          onChanged: (value) {
-                            unawaited(settings.setLargeText(value));
-                          },
-                        ),
-                      ],
-                    ),
+                  ButtonSegment<ExplanationMode>(
+                    value: ExplanationMode.detailed,
+                    icon: Icon(Icons.tune_rounded),
+                    label: Text('Detailed'),
                   ),
                 ],
+                selected: <ExplanationMode>{dashboard.explanationMode},
+                onSelectionChanged: (selection) {
+                  if (selection.isNotEmpty) {
+                    unawaited(
+                      ref
+                          .read(weatherDashboardControllerProvider.notifier)
+                          .setExplanationMode(selection.first),
+                    );
+                  }
+                },
               ),
-            ),
+              const SizedBox(height: 8),
+              Text(
+                dashboard.explanationMode.description,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 18),
+              Text(
+                'Theme mode',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 10),
+              SegmentedButton<ThemeMode>(
+                showSelectedIcon: false,
+                segments: const <ButtonSegment<ThemeMode>>[
+                  ButtonSegment<ThemeMode>(
+                    value: ThemeMode.system,
+                    icon: Icon(Icons.brightness_auto_rounded),
+                    label: Text('Adaptive'),
+                  ),
+                  ButtonSegment<ThemeMode>(
+                    value: ThemeMode.light,
+                    icon: Icon(Icons.light_mode_rounded),
+                    label: Text('Light'),
+                  ),
+                  ButtonSegment<ThemeMode>(
+                    value: ThemeMode.dark,
+                    icon: Icon(Icons.dark_mode_rounded),
+                    label: Text('Dark'),
+                  ),
+                ],
+                selected: <ThemeMode>{settings.themeMode},
+                onSelectionChanged: (selection) {
+                  if (selection.isNotEmpty) {
+                    unawaited(
+                      ref
+                          .read(displaySettingsControllerProvider.notifier)
+                          .setThemeMode(selection.first),
+                    );
+                  }
+                },
+              ),
+              const SizedBox(height: 18),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: _surfaceFill(context),
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(color: _surfaceBorder(context)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Container(
+                      height: 42,
+                      width: 42,
+                      decoration: BoxDecoration(
+                        color: _surfaceFill(context, strong: true),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Icon(
+                        Icons.text_fields_rounded,
+                        color: AppPalette.sky,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            'Large text mode',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Improves legibility across cards, sheets, and summaries.',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                    Switch.adaptive(
+                      value: settings.largeText,
+                      onChanged: (value) {
+                        unawaited(
+                          ref
+                              .read(displaySettingsControllerProvider.notifier)
+                              .setLargeText(value),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }
 
 class CommuteWindowsSheet extends StatefulWidget {
-  const CommuteWindowsSheet({
-    super.key,
-    required this.initialWindows,
-  });
+  const CommuteWindowsSheet({super.key, required this.initialWindows});
 
   final List<SavedCommuteWindow> initialWindows;
 
@@ -2396,9 +2543,7 @@ class _CommuteWindowsSheetState extends State<CommuteWindowsSheet> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
-        return CommuteWindowEditorSheet(
-          initialWindow: existing,
-        );
+        return CommuteWindowEditorSheet(initialWindow: existing);
       },
     );
 
@@ -2510,19 +2655,28 @@ class _CommuteWindowsSheetState extends State<CommuteWindowsSheet> {
                                     height: 44,
                                     width: 44,
                                     decoration: BoxDecoration(
-                                      color: _surfaceFill(context, strong: true),
+                                      color: _surfaceFill(
+                                        context,
+                                        strong: true,
+                                      ),
                                       borderRadius: BorderRadius.circular(14),
                                     ),
-                                    child: const Icon(Icons.schedule_rounded, color: AppPalette.sky),
+                                    child: const Icon(
+                                      Icons.schedule_rounded,
+                                      color: AppPalette.sky,
+                                    ),
                                   ),
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: <Widget>[
                                         Text(
                                           window.label,
-                                          style: Theme.of(context).textTheme.titleMedium,
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.titleMedium,
                                         ),
                                         const SizedBox(height: 4),
                                         Text(
@@ -2530,7 +2684,9 @@ class _CommuteWindowsSheetState extends State<CommuteWindowsSheet> {
                                             window.startMinutes,
                                             window.endMinutes,
                                           ),
-                                          style: Theme.of(context).textTheme.bodySmall,
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.bodySmall,
                                         ),
                                       ],
                                     ),
@@ -2574,15 +2730,13 @@ class _CommuteWindowsSheetState extends State<CommuteWindowsSheet> {
 }
 
 class CommuteWindowEditorSheet extends StatefulWidget {
-  const CommuteWindowEditorSheet({
-    super.key,
-    this.initialWindow,
-  });
+  const CommuteWindowEditorSheet({super.key, this.initialWindow});
 
   final SavedCommuteWindow? initialWindow;
 
   @override
-  State<CommuteWindowEditorSheet> createState() => _CommuteWindowEditorSheetState();
+  State<CommuteWindowEditorSheet> createState() =>
+      _CommuteWindowEditorSheetState();
 }
 
 class _CommuteWindowEditorSheetState extends State<CommuteWindowEditorSheet> {
@@ -2628,7 +2782,9 @@ class _CommuteWindowEditorSheetState extends State<CommuteWindowEditorSheet> {
       return;
     }
     final window = SavedCommuteWindow(
-      id: widget.initialWindow?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
+      id:
+          widget.initialWindow?.id ??
+          DateTime.now().microsecondsSinceEpoch.toString(),
       label: label,
       startMinutes: _timeOfDayToMinutes(_startTime),
       endMinutes: _timeOfDayToMinutes(_endTime),
@@ -2656,7 +2812,9 @@ class _CommuteWindowEditorSheetState extends State<CommuteWindowEditorSheet> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Text(
-                  widget.initialWindow == null ? 'Add favourite routine' : 'Edit favourite routine',
+                  widget.initialWindow == null
+                      ? 'Add favourite routine'
+                      : 'Edit favourite routine',
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
                 const SizedBox(height: 16),
@@ -2749,10 +2907,7 @@ String _formatWindowMinutes(int startMinutes, int endMinutes) {
 
 TimeOfDay _minutesToTimeOfDay(int totalMinutes) {
   final normalized = ((totalMinutes % (24 * 60)) + (24 * 60)) % (24 * 60);
-  return TimeOfDay(
-    hour: normalized ~/ 60,
-    minute: normalized % 60,
-  );
+  return TimeOfDay(hour: normalized ~/ 60, minute: normalized % 60);
 }
 
 int _timeOfDayToMinutes(TimeOfDay time) => time.hour * 60 + time.minute;
@@ -2761,8 +2916,8 @@ String _formatTimeOfDay(TimeOfDay time) {
   final hour = time.hour == 0
       ? 12
       : time.hour > 12
-          ? time.hour - 12
-          : time.hour;
+      ? time.hour - 12
+      : time.hour;
   final suffix = time.hour >= 12 ? 'pm' : 'am';
   final minute = time.minute.toString().padLeft(2, '0');
   return '$hour:$minute $suffix';
@@ -2826,10 +2981,12 @@ class _LocationSearchSheetState extends State<LocationSearchSheet> {
       return WeatherLocation.presets;
     }
     final lower = query.toLowerCase();
-    return WeatherLocation.presets.where((location) {
-      return location.name.toLowerCase().contains(lower) ||
-          location.region.toLowerCase().contains(lower);
-    }).toList(growable: false);
+    return WeatherLocation.presets
+        .where((location) {
+          return location.name.toLowerCase().contains(lower) ||
+              location.region.toLowerCase().contains(lower);
+        })
+        .toList(growable: false);
   }
 
   @override
@@ -2861,7 +3018,10 @@ class _LocationSearchSheetState extends State<LocationSearchSheet> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Text('Choose a UK location', style: Theme.of(context).textTheme.headlineSmall),
+                    Text(
+                      'Choose a UK location',
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
                     const SizedBox(height: 8),
                     Text(
                       'Search towns and cities, or pick a quick preset.',
@@ -2890,12 +3050,15 @@ class _LocationSearchSheetState extends State<LocationSearchSheet> {
                     if (_loading && index == 0) {
                       return const Padding(
                         padding: EdgeInsets.symmetric(vertical: 12),
-                        child: Center(child: CircularProgressIndicator(strokeWidth: 2.5)),
+                        child: Center(
+                          child: CircularProgressIndicator(strokeWidth: 2.5),
+                        ),
                       );
                     }
                     final offset = _loading ? index - 1 : index;
                     final location = _results[offset];
-                    final selected = location.name == widget.selectedLocation.name &&
+                    final selected =
+                        location.name == widget.selectedLocation.name &&
                         location.region == widget.selectedLocation.region;
                     return InkWell(
                       borderRadius: BorderRadius.circular(22),
@@ -2922,21 +3085,37 @@ class _LocationSearchSheetState extends State<LocationSearchSheet> {
                                 color: _surfaceFill(context, strong: true),
                                 borderRadius: BorderRadius.circular(14),
                               ),
-                              child: const Icon(Icons.place_rounded, color: AppPalette.sky),
+                              child: const Icon(
+                                Icons.place_rounded,
+                                color: AppPalette.sky,
+                              ),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: <Widget>[
-                                  Text(location.name, style: Theme.of(context).textTheme.titleMedium),
+                                  Text(
+                                    location.name,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.titleMedium,
+                                  ),
                                   const SizedBox(height: 2),
-                                  Text(location.subtitle, style: Theme.of(context).textTheme.bodySmall),
+                                  Text(
+                                    location.subtitle,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodySmall,
+                                  ),
                                 ],
                               ),
                             ),
                             if (selected)
-                              const Icon(Icons.check_circle_rounded, color: AppPalette.teal),
+                              const Icon(
+                                Icons.check_circle_rounded,
+                                color: AppPalette.teal,
+                              ),
                           ],
                         ),
                       ),

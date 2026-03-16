@@ -8,10 +8,7 @@ class WeatherInterpreter {
 
   bool get isDetailed => mode == ExplanationMode.detailed;
 
-  String explain(
-    String simple, {
-    Iterable<String> details = const <String>[],
-  }) {
+  String explain(String simple, {Iterable<String> details = const <String>[]}) {
     if (!isDetailed) {
       return simple;
     }
@@ -26,13 +23,15 @@ class WeatherInterpreter {
     return '$simple $supporting';
   }
 
-  String apparent(double temperatureC) => 'Feels like ${formatTemperature(temperatureC)}.';
+  String apparent(double temperatureC) =>
+      'Feels like ${formatTemperature(temperatureC)}.';
 
   String temperatureRange(double minC, double maxC) {
     return 'Temperatures range from ${formatTemperature(minC)} to ${formatTemperature(maxC)}.';
   }
 
-  String rainChance(int percent) => 'Rain chance peaks near ${formatPercent(percent)}.';
+  String rainChance(int percent) =>
+      'Rain chance peaks near ${formatPercent(percent)}.';
 
   String rainAmount(double millimetres, {String prefix = 'Rainfall'}) {
     return '$prefix reaches about ${formatRain(millimetres)}.';
@@ -42,9 +41,14 @@ class WeatherInterpreter {
 
   String gust(double kph) => 'Gusts could reach ${formatWind(kph)}.';
 
-  String visibility(double meters) => 'Visibility is around ${formatVisibility(meters)}.';
+  String visibility(double meters) =>
+      'Visibility is around ${formatVisibility(meters)}.';
 
-  String dryWindow(DateTime start, DateTime end, {String prefix = 'Dry window'}) {
+  String dryWindow(
+    DateTime start,
+    DateTime end, {
+    String prefix = 'Dry window',
+  }) {
     return '$prefix runs ${formatTimeRange(start, end)}.';
   }
 

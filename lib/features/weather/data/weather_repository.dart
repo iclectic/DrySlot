@@ -1,33 +1,111 @@
 import 'dart:convert';
 import 'dart:math';
 
-import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:xml/xml.dart';
 
+import '../../../core/providers/app_providers.dart';
 import '../domain/weather_models.dart';
+import '../domain/weather_repository.dart';
+import 'weather_local_store.dart';
 
-abstract class WeatherRepository {
-  Future<WeatherReport> fetchWeather(WeatherLocation location);
+final weatherLocalStoreProvider = Provider<WeatherLocalStore>((ref) {
+  return WeatherLocalStore(ref.watch(weatherStorageBoxProvider));
+});
 
-  Future<List<WeatherLocation>> searchLocations(String query);
-}
+final weatherRepositoryProvider = Provider<WeatherRepository>((ref) {
+  return OpenMeteoWeatherRepository(
+    dio: ref.watch(dioProvider),
+    localStore: ref.watch(weatherLocalStoreProvider),
+  );
+});
 
 class OpenMeteoWeatherRepository implements WeatherRepository {
-  OpenMeteoWeatherRepository({http.Client? client})
-      : _client = client ?? http.Client(),
-        _fallback = const DemoWeatherRepository();
+  OpenMeteoWeatherRepository({
+    required Dio dio,
+    required WeatherLocalStore localStore,
+    DemoWeatherRepository fallback = const DemoWeatherRepository(),
+  }) : _dio = dio,
+       _localStore = localStore,
+       _fallback = fallback;
 
-  final http.Client _client;
+  final Dio _dio;
+  final WeatherLocalStore _localStore;
   final DemoWeatherRepository _fallback;
-
-  void close() => _client.close();
 
   @override
   Future<WeatherReport> fetchWeather(WeatherLocation location) async {
-    final uri = Uri.https(
-      'api.open-meteo.com',
-      '/v1/forecast',
-      <String, String>{
+    final response = _fetchWeatherResponse(location);
+    final warningsFuture = _fetchOfficialWarnings(location);
+
+    try {
+      final forecastResponse = await response;
+      final json = _jsonMap(forecastResponse.data);
+      final warnings = await warningsFuture;
+      final report = _parseReport(location, json, warnings);
+      await _localStore.cacheReport(report);
+      return report;
+    } catch (_) {
+      final cached = _localStore.getCachedReport(location);
+      if (cached != null) {
+        return cached.copyWith(
+          usingFallback: true,
+          sourceLabel: 'Saved forecast',
+          sourceNote:
+              'Showing the most recent saved forecast because live weather is unavailable.',
+        );
+      }
+      return _fallback.fetchWeather(location);
+    }
+  }
+
+  @override
+  Future<List<WeatherLocation>> searchLocations(String query) async {
+    final cleanQuery = query.trim();
+    if (cleanQuery.length < 2) {
+      return _filterPresets(cleanQuery);
+    }
+
+    final response = await _dio.get<Object?>(
+      'https://geocoding-api.open-meteo.com/v1/search',
+      queryParameters: <String, String>{
+        'name': cleanQuery,
+        'count': '8',
+        'language': 'en',
+        'countryCode': 'GB',
+        'format': 'json',
+      },
+    );
+
+    try {
+      final json = _jsonMap(response.data);
+      final results = (json['results'] as List<dynamic>? ?? <dynamic>[])
+          .whereType<Map>()
+          .map((entry) => _mapLocation(entry.cast<String, dynamic>()))
+          .toList(growable: false);
+
+      if (results.isEmpty) {
+        return _filterPresets(cleanQuery);
+      }
+
+      final seen = <String>{};
+      return results
+          .where((location) {
+            final key =
+                '${location.name}-${location.region}-${location.latitude}-${location.longitude}';
+            return seen.add(key);
+          })
+          .toList(growable: false);
+    } catch (_) {
+      return _filterPresets(cleanQuery);
+    }
+  }
+
+  Future<Response<Object?>> _fetchWeatherResponse(WeatherLocation location) {
+    return _dio.get<Object?>(
+      'https://api.open-meteo.com/v1/forecast',
+      queryParameters: <String, String>{
         'latitude': location.latitude.toStringAsFixed(4),
         'longitude': location.longitude.toStringAsFixed(4),
         'timezone': location.timezone,
@@ -42,63 +120,6 @@ class OpenMeteoWeatherRepository implements WeatherRepository {
             'weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,uv_index_max,sunrise,sunset',
       },
     );
-
-    try {
-      final warningsFuture = _fetchOfficialWarnings(location);
-      final response = await _client.get(uri);
-      if (response.statusCode != 200) {
-        throw Exception('Forecast request failed: ${response.statusCode}');
-      }
-      final json = jsonDecode(response.body) as Map<String, dynamic>;
-      final warnings = await warningsFuture;
-      return _parseReport(location, json, warnings);
-    } catch (_) {
-      return _fallback.fetchWeather(location);
-    }
-  }
-
-  @override
-  Future<List<WeatherLocation>> searchLocations(String query) async {
-    final cleanQuery = query.trim();
-    if (cleanQuery.length < 2) {
-      return _filterPresets(cleanQuery);
-    }
-
-    final uri = Uri.https(
-      'geocoding-api.open-meteo.com',
-      '/v1/search',
-      <String, String>{
-        'name': cleanQuery,
-        'count': '8',
-        'language': 'en',
-        'countryCode': 'GB',
-        'format': 'json',
-      },
-    );
-
-    try {
-      final response = await _client.get(uri);
-      if (response.statusCode != 200) {
-        throw Exception('Geocoding failed');
-      }
-      final json = jsonDecode(response.body) as Map<String, dynamic>;
-      final results = (json['results'] as List<dynamic>? ?? <dynamic>[])
-          .whereType<Map<String, dynamic>>()
-          .map(_mapLocation)
-          .toList(growable: false);
-
-      if (results.isEmpty) {
-        return _filterPresets(cleanQuery);
-      }
-
-      final seen = <String>{};
-      return results.where((location) {
-        final key = '${location.name}-${location.region}-${location.latitude}-${location.longitude}';
-        return seen.add(key);
-      }).toList(growable: false);
-    } catch (_) {
-      return _filterPresets(cleanQuery);
-    }
   }
 
   WeatherReport _parseReport(
@@ -106,9 +127,12 @@ class OpenMeteoWeatherRepository implements WeatherRepository {
     Map<String, dynamic> json,
     List<OfficialWarning> officialWarnings,
   ) {
-    final currentJson = json['current'] as Map<String, dynamic>? ?? <String, dynamic>{};
-    final hourlyJson = json['hourly'] as Map<String, dynamic>? ?? <String, dynamic>{};
-    final dailyJson = json['daily'] as Map<String, dynamic>? ?? <String, dynamic>{};
+    final currentJson =
+        json['current'] as Map<String, dynamic>? ?? <String, dynamic>{};
+    final hourlyJson =
+        json['hourly'] as Map<String, dynamic>? ?? <String, dynamic>{};
+    final dailyJson =
+        json['daily'] as Map<String, dynamic>? ?? <String, dynamic>{};
 
     final hourly = _parseHourly(hourlyJson);
     final current = CurrentConditions(
@@ -147,34 +171,41 @@ class OpenMeteoWeatherRepository implements WeatherRepository {
     );
   }
 
-  Future<List<OfficialWarning>> _fetchOfficialWarnings(WeatherLocation location) async {
+  Future<List<OfficialWarning>> _fetchOfficialWarnings(
+    WeatherLocation location,
+  ) async {
     try {
-      final uri = Uri.https(
-        'weather.metoffice.gov.uk',
-        '/public/data/PWSCache/WarningsRSS/Region/UK',
+      final response = await _dio.get<String>(
+        'https://weather.metoffice.gov.uk/public/data/PWSCache/WarningsRSS/Region/UK',
+        options: Options(responseType: ResponseType.plain),
       );
-      final response = await _client.get(uri);
-      if (response.statusCode != 200 || response.body.trim().isEmpty) {
+      final body = response.data?.trim() ?? '';
+      if (body.isEmpty) {
         return const <OfficialWarning>[];
       }
 
-      final document = XmlDocument.parse(response.body);
-      final warnings = document.findAllElements('item').map((item) {
-        final title = _xmlText(item, 'title');
-        final summary = _stripHtml(_xmlText(item, 'description'));
-        final link = _xmlText(item, 'link');
-        return OfficialWarning(
-          title: title,
-          summary: summary,
-          severityLabel: _severityLabel('$title $summary'),
-          sourceLabel: 'Met Office official warning',
-          link: link.isEmpty ? null : link,
-        );
-      }).where((warning) => warning.title.isNotEmpty).toList(growable: false);
+      final document = XmlDocument.parse(body);
+      final warnings = document
+          .findAllElements('item')
+          .map((item) {
+            final title = _xmlText(item, 'title');
+            final summary = _stripHtml(_xmlText(item, 'description'));
+            final link = _xmlText(item, 'link');
+            return OfficialWarning(
+              title: title,
+              summary: summary,
+              severityLabel: _severityLabel('$title $summary'),
+              sourceLabel: 'Met Office official warning',
+              link: link.isEmpty ? null : link,
+            );
+          })
+          .where((warning) => warning.title.isNotEmpty)
+          .toList(growable: false);
 
-      final matching = warnings.where((warning) {
-        return _warningMatchesLocation(warning, location);
-      }).take(3).toList(growable: false);
+      final matching = warnings
+          .where((warning) => _warningMatchesLocation(warning, location))
+          .take(3)
+          .toList(growable: false);
 
       if (matching.isNotEmpty) {
         return matching;
@@ -215,18 +246,22 @@ class OpenMeteoWeatherRepository implements WeatherRepository {
     }
 
     return List<MinuteForecast>.generate(length, (index) {
+      final time = _parseDateTime(times[index]);
       return MinuteForecast(
-        time: _parseDateTime(times[index]),
+        time: time,
         precipitationMm: precipitation[index],
         weatherCode: weatherCode[index].round(),
         windSpeedKph: wind[index],
         visibilityMeters: visibility[index],
-        isDay: _parseDateTime(times[index]).hour >= 7 && _parseDateTime(times[index]).hour < 19,
+        isDay: time.hour >= 7 && time.hour < 19,
       );
     }, growable: false);
   }
 
-  List<MinuteForecast> _minutelyFromHourly(List<HourlyForecast> hourly, CurrentConditions current) {
+  List<MinuteForecast> _minutelyFromHourly(
+    List<HourlyForecast> hourly,
+    CurrentConditions current,
+  ) {
     final baseSlots = hourly.take(2).toList(growable: false);
     if (baseSlots.isEmpty) {
       return <MinuteForecast>[
@@ -382,10 +417,23 @@ class OpenMeteoWeatherRepository implements WeatherRepository {
     }
 
     final lower = query.toLowerCase();
-    return WeatherLocation.presets.where((location) {
-      return location.name.toLowerCase().contains(lower) ||
-          location.region.toLowerCase().contains(lower);
-    }).toList(growable: false);
+    return WeatherLocation.presets
+        .where((location) {
+          return location.name.toLowerCase().contains(lower) ||
+              location.region.toLowerCase().contains(lower);
+        })
+        .toList(growable: false);
+  }
+
+  Map<String, dynamic> _jsonMap(Object? data) {
+    if (data is Map<String, dynamic>) {
+      return data;
+    }
+    if (data is String && data.isNotEmpty) {
+      return (jsonDecode(data) as Map<Object?, Object?>)
+          .cast<String, dynamic>();
+    }
+    throw const FormatException('Unexpected response payload');
   }
 
   List<String> _asStringList(dynamic value) {
@@ -437,7 +485,10 @@ class OpenMeteoWeatherRepository implements WeatherRepository {
     return 'Official warning';
   }
 
-  bool _warningMatchesLocation(OfficialWarning warning, WeatherLocation location) {
+  bool _warningMatchesLocation(
+    OfficialWarning warning,
+    WeatherLocation location,
+  ) {
     final text = '${warning.title} ${warning.summary}'.toLowerCase();
     final keywords = <String>{
       location.name.toLowerCase(),
@@ -455,7 +506,8 @@ class OpenMeteoWeatherRepository implements WeatherRepository {
     if (lowerRegion.contains('wales') || lowerName.contains('cardiff')) {
       return const <String>{'wales'};
     }
-    if (lowerRegion.contains('northern ireland') || lowerName.contains('belfast')) {
+    if (lowerRegion.contains('northern ireland') ||
+        lowerName.contains('belfast')) {
       return const <String>{'northern ireland'};
     }
     if (lowerRegion.contains('scotland') ||
@@ -488,7 +540,10 @@ class DemoWeatherRepository implements WeatherRepository {
   @override
   Future<WeatherReport> fetchWeather(WeatherLocation location) async {
     final now = DateTime.now();
-    final seed = location.name.codeUnits.fold<int>(0, (sum, unit) => sum + unit);
+    final seed = location.name.codeUnits.fold<int>(
+      0,
+      (sum, unit) => sum + unit,
+    );
     final drift = (seed % 5).toDouble();
     final current = CurrentConditions(
       time: now,
@@ -506,11 +561,11 @@ class DemoWeatherRepository implements WeatherRepository {
     );
 
     final minutely = List<MinuteForecast>.generate(8, (index) {
-      final double pulse = index == 2 || index == 3
+      final pulse = index == 2 || index == 3
           ? 0.25 + drift * 0.03
           : index >= 5
-              ? 0.05
-              : 0;
+          ? 0.05
+          : 0.0;
       return MinuteForecast(
         time: now.add(Duration(minutes: index * 15)),
         precipitationMm: pulse,
@@ -522,17 +577,28 @@ class DemoWeatherRepository implements WeatherRepository {
     }, growable: false);
 
     final hourly = List<HourlyForecast>.generate(24, (index) {
-      final time = DateTime(now.year, now.month, now.day, now.hour).add(Duration(hours: index));
+      final time = DateTime(
+        now.year,
+        now.month,
+        now.day,
+        now.hour,
+      ).add(Duration(hours: index));
       final afternoon = time.hour >= 12 && time.hour <= 16;
       final evening = time.hour >= 17 && time.hour <= 21;
-      final double precipitationMm = afternoon
-          ? 0
+      final precipitationMm = afternoon
+          ? 0.0
           : evening
-              ? 0.18
-              : index < 2
-                  ? 0.32
-                  : 0.08;
-      final chance = afternoon ? 12 : evening ? 35 : index < 2 ? 62 : 25;
+          ? 0.18
+          : index < 2
+          ? 0.32
+          : 0.08;
+      final chance = afternoon
+          ? 12
+          : evening
+          ? 35
+          : index < 2
+          ? 62
+          : 25;
       final wind = afternoon ? 16 + drift : 22 + drift;
       return HourlyForecast(
         time: time,
@@ -540,7 +606,11 @@ class DemoWeatherRepository implements WeatherRepository {
         apparentTemperatureC: 8 + sin((index + drift) / 3) * 2.5,
         precipitationProbability: chance,
         precipitationMm: precipitationMm,
-        weatherCode: precipitationMm > 0.1 ? 80 : afternoon ? 1 : 3,
+        weatherCode: precipitationMm > 0.1
+            ? 80
+            : afternoon
+            ? 1
+            : 3,
         windSpeedKph: wind,
         windGustKph: wind + 8,
         visibilityMeters: precipitationMm > 0.1 ? 6500 : 14000,
@@ -551,22 +621,34 @@ class DemoWeatherRepository implements WeatherRepository {
     }, growable: false);
 
     final daily = List<DailyForecast>.generate(7, (index) {
-      final date = DateTime(now.year, now.month, now.day).add(Duration(days: index));
+      final date = DateTime(
+        now.year,
+        now.month,
+        now.day,
+      ).add(Duration(days: index));
       final weekend = date.weekday >= DateTime.saturday;
       final unsettled = index == 0 || index == 4;
       final bright = date.weekday == DateTime.saturday;
       final maxTemp = 14 + sin((index + drift) / 2) * 2 + (bright ? 2 : 0);
       final minTemp = 6 + sin((index + drift) / 2);
-      final rain = unsettled ? 3.2 + drift * 0.3 : weekend ? 0.4 + drift * 0.1 : 1.2;
-      final rainChance = unsettled ? 72 : weekend ? 22 : 44;
+      final rain = unsettled
+          ? 3.2 + drift * 0.3
+          : weekend
+          ? 0.4 + drift * 0.1
+          : 1.2;
+      final rainChance = unsettled
+          ? 72
+          : weekend
+          ? 22
+          : 44;
       final wind = weekend ? 19 + drift : 26 + drift;
       final weatherCode = unsettled
           ? 61
           : bright
-              ? 1
-              : weekend
-                  ? 3
-                  : 45;
+          ? 1
+          : weekend
+          ? 3
+          : 45;
       return DailyForecast(
         date: date,
         weatherCode: weatherCode,
@@ -595,13 +677,15 @@ class DemoWeatherRepository implements WeatherRepository {
           ? const <OfficialWarning>[
               OfficialWarning(
                 title: 'Yellow warning of wind',
-                summary: 'Met Office warning feed unavailable, showing a built-in sample warning.',
+                summary:
+                    'Met Office warning feed unavailable, showing a built-in sample warning.',
                 severityLabel: 'Yellow warning',
                 sourceLabel: 'Sample official warning',
               ),
             ]
           : const <OfficialWarning>[],
-      sourceNote: 'Live forecast unavailable, so Dry Slots is showing a built-in demo.',
+      sourceNote:
+          'Live forecast unavailable, so Dry Slots is showing a built-in demo.',
     );
   }
 
@@ -611,9 +695,11 @@ class DemoWeatherRepository implements WeatherRepository {
       return WeatherLocation.presets;
     }
     final lower = query.trim().toLowerCase();
-    return WeatherLocation.presets.where((location) {
-      return location.name.toLowerCase().contains(lower) ||
-          location.region.toLowerCase().contains(lower);
-    }).toList(growable: false);
+    return WeatherLocation.presets
+        .where((location) {
+          return location.name.toLowerCase().contains(lower) ||
+              location.region.toLowerCase().contains(lower);
+        })
+        .toList(growable: false);
   }
 }

@@ -43,12 +43,18 @@ final class AppTheme {
     ).textTheme;
     final primaryText = isDark ? AppPalette.mist : AppPalette.ink;
     final secondaryText = isDark ? AppPalette.muted : AppPalette.slate;
-    final surfaceFill = isDark ? Colors.white.withValues(alpha: 0.06) : Colors.white.withValues(alpha: 0.78);
-    final selectedFill =
-        isDark ? Colors.white.withValues(alpha: 0.14) : AppPalette.sky.withValues(alpha: 0.18);
-    final outline = isDark ? Colors.white.withValues(alpha: 0.1) : AppPalette.ink.withValues(alpha: 0.08);
-    final filledButtonBackground =
-        isDark ? Colors.white.withValues(alpha: 0.12) : AppPalette.ink.withValues(alpha: 0.92);
+    final surfaceFill = isDark
+        ? Colors.white.withValues(alpha: 0.06)
+        : Colors.white.withValues(alpha: 0.78);
+    final selectedFill = isDark
+        ? Colors.white.withValues(alpha: 0.14)
+        : AppPalette.sky.withValues(alpha: 0.18);
+    final outline = isDark
+        ? Colors.white.withValues(alpha: 0.1)
+        : AppPalette.ink.withValues(alpha: 0.08);
+    final filledButtonBackground = isDark
+        ? Colors.white.withValues(alpha: 0.12)
+        : AppPalette.ink.withValues(alpha: 0.92);
 
     final textTheme = baseTextTheme.copyWith(
       displaySmall: TextStyle(
@@ -158,7 +164,10 @@ final class AppTheme {
           borderRadius: BorderRadius.circular(22),
           borderSide: const BorderSide(color: AppPalette.sky, width: 1.5),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 18,
+          vertical: 16,
+        ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
@@ -166,7 +175,9 @@ final class AppTheme {
           foregroundColor: isDark ? AppPalette.mist : AppPalette.dawn,
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
           textStyle: textTheme.labelLarge,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
         ),
       ),
       progressIndicatorTheme: const ProgressIndicatorThemeData(

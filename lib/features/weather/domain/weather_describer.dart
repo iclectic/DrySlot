@@ -12,10 +12,7 @@ class WeatherDescriptor {
   final IconData icon;
 }
 
-WeatherDescriptor describeWeatherCode(
-  int code, {
-  required bool isDay,
-}) {
+WeatherDescriptor describeWeatherCode(int code, {required bool isDay}) {
   switch (code) {
     case 0:
       return WeatherDescriptor(
