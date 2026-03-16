@@ -24,8 +24,26 @@ void main() {
     required List<HourlyForecast> hourly,
     required CurrentConditions current,
     required DailyForecast today,
+    List<DailyForecast>? daily,
     List<OfficialWarning> officialWarnings = const <OfficialWarning>[],
   }) {
+    final dailyForecast = daily ??
+        List<DailyForecast>.generate(7, (index) {
+          final date = DateTime(today.date.year, today.date.month, today.date.day)
+              .add(Duration(days: index));
+          return DailyForecast(
+            date: date,
+            weatherCode: today.weatherCode,
+            maxTempC: today.maxTempC,
+            minTempC: today.minTempC,
+            precipitationMm: today.precipitationMm,
+            precipitationProbabilityMax: today.precipitationProbabilityMax,
+            maxWindKph: today.maxWindKph,
+            uvIndexMax: today.uvIndexMax,
+            sunrise: DateTime(date.year, date.month, date.day, today.sunrise.hour, today.sunrise.minute),
+            sunset: DateTime(date.year, date.month, date.day, today.sunset.hour, today.sunset.minute),
+          );
+        }, growable: false);
     return WeatherReport(
       location: WeatherLocation.london,
       fetchedAt: current.time,
@@ -33,6 +51,7 @@ void main() {
       minutely: minutely,
       hourly: hourly,
       today: today,
+      daily: dailyForecast,
       usingFallback: false,
       sourceLabel: 'Test',
       officialWarnings: officialWarnings,
@@ -96,7 +115,11 @@ void main() {
       ),
     );
 
-    final guidance = advisor.build(report, commuteWindows: savedWindows);
+    final guidance = advisor.build(
+      report,
+      commuteWindows: savedWindows,
+      explanationMode: ExplanationMode.simple,
+    );
 
     expect(guidance.nextHour.tone, AdviceTone.go);
     expect(guidance.nextHour.departureAdvice, contains('head out'));
@@ -161,7 +184,11 @@ void main() {
       ),
     );
 
-    final guidance = advisor.build(report, commuteWindows: savedWindows);
+    final guidance = advisor.build(
+      report,
+      commuteWindows: savedWindows,
+      explanationMode: ExplanationMode.simple,
+    );
 
     expect(guidance.nextHour.tone, isNot(AdviceTone.go));
     expect(guidance.risks.first.level, isNot(RiskLevel.calm));
@@ -218,7 +245,11 @@ void main() {
       ),
     );
 
-    final guidance = advisor.build(report, commuteWindows: savedWindows);
+    final guidance = advisor.build(
+      report,
+      commuteWindows: savedWindows,
+      explanationMode: ExplanationMode.simple,
+    );
 
     expect(guidance.commute.windows, hasLength(2));
     expect(guidance.commute.windows.first.label, 'School run');
@@ -282,7 +313,11 @@ void main() {
       ),
     );
 
-    final guidance = advisor.build(report, commuteWindows: savedWindows);
+    final guidance = advisor.build(
+      report,
+      commuteWindows: savedWindows,
+      explanationMode: ExplanationMode.simple,
+    );
 
     expect(guidance.wearTips.first.title, anyOf('Umbrella recommended', 'Take a light waterproof'));
     expect(
@@ -348,7 +383,11 @@ void main() {
       ),
     );
 
-    final guidance = advisor.build(report, commuteWindows: savedWindows);
+    final guidance = advisor.build(
+      report,
+      commuteWindows: savedWindows,
+      explanationMode: ExplanationMode.simple,
+    );
 
     final names = guidance.activities.map((activity) => activity.name).toList(growable: false);
     expect(
@@ -434,7 +473,11 @@ void main() {
       ],
     );
 
-    final guidance = advisor.build(report, commuteWindows: savedWindows);
+    final guidance = advisor.build(
+      report,
+      commuteWindows: savedWindows,
+      explanationMode: ExplanationMode.simple,
+    );
 
     expect(guidance.risks.first.source, AlertSource.official);
     expect(guidance.homeCards, hasLength(5));
@@ -448,5 +491,191 @@ void main() {
         'Daily advice',
       ]),
     );
+  });
+
+  test('adds supporting metrics only in detailed explanation mode', () {
+    final now = DateTime(2026, 3, 15, 8);
+    final report = makeReport(
+      current: CurrentConditions(
+        time: now,
+        temperatureC: 11,
+        apparentTemperatureC: 9,
+        weatherCode: 3,
+        isDay: true,
+        precipitationMm: 0.1,
+        rainMm: 0.1,
+        showersMm: 0,
+        cloudCover: 58,
+        windSpeedKph: 22,
+        windGustKph: 30,
+        visibilityMeters: 8500,
+      ),
+      minutely: List<MinuteForecast>.generate(4, (index) {
+        return MinuteForecast(
+          time: now.add(Duration(minutes: index * 15)),
+          precipitationMm: index >= 2 ? 0.25 : 0,
+          weatherCode: index >= 2 ? 61 : 3,
+          windSpeedKph: 22,
+          visibilityMeters: 8500,
+          isDay: true,
+        );
+      }),
+      hourly: List<HourlyForecast>.generate(8, (index) {
+        return HourlyForecast(
+          time: now.add(Duration(hours: index)),
+          temperatureC: 11 + index * 0.5,
+          apparentTemperatureC: 9 + index * 0.5,
+          precipitationProbability: index < 2 ? 55 : 20,
+          precipitationMm: index < 2 ? 0.4 : 0.05,
+          weatherCode: index < 2 ? 61 : 3,
+          windSpeedKph: 22,
+          windGustKph: 30,
+          visibilityMeters: 8500,
+          cloudCover: 58,
+          uvIndex: 1.8,
+          isDay: true,
+        );
+      }),
+      today: DailyForecast(
+        date: now,
+        weatherCode: 61,
+        maxTempC: 15,
+        minTempC: 8,
+        precipitationMm: 2.3,
+        precipitationProbabilityMax: 55,
+        maxWindKph: 24,
+        uvIndexMax: 2.2,
+        sunrise: DateTime(2026, 3, 15, 6, 18),
+        sunset: DateTime(2026, 3, 15, 18, 6),
+      ),
+    );
+
+    final simpleGuidance = advisor.build(
+      report,
+      commuteWindows: savedWindows,
+      explanationMode: ExplanationMode.simple,
+    );
+    final detailedGuidance = advisor.build(
+      report,
+      commuteWindows: savedWindows,
+      explanationMode: ExplanationMode.detailed,
+    );
+
+    expect(simpleGuidance.nextHour.detail, isNot(contains('Visibility is around')));
+    expect(simpleGuidance.simpleSummary, isNot(contains('Temperatures range from')));
+    expect(detailedGuidance.nextHour.detail, contains('Visibility is around'));
+    expect(detailedGuidance.simpleSummary, contains('Temperatures range from'));
+    expect(detailedGuidance.commute.summary, contains('saved routine'));
+  });
+
+  test('builds a weekend planner from multi-day forecasts', () {
+    final now = DateTime(2026, 3, 19, 9);
+    final report = makeReport(
+      current: CurrentConditions(
+        time: now,
+        temperatureC: 10,
+        apparentTemperatureC: 9,
+        weatherCode: 3,
+        isDay: true,
+        precipitationMm: 0,
+        rainMm: 0,
+        showersMm: 0,
+        cloudCover: 48,
+        windSpeedKph: 16,
+        windGustKph: 24,
+        visibilityMeters: 12000,
+      ),
+      minutely: const <MinuteForecast>[],
+      hourly: List<HourlyForecast>.generate(12, (index) {
+        return HourlyForecast(
+          time: now.add(Duration(hours: index)),
+          temperatureC: 10 + index * 0.2,
+          apparentTemperatureC: 9 + index * 0.2,
+          precipitationProbability: 20,
+          precipitationMm: 0,
+          weatherCode: 3,
+          windSpeedKph: 16,
+          windGustKph: 24,
+          visibilityMeters: 12000,
+          cloudCover: 48,
+          uvIndex: 2.1,
+          isDay: true,
+        );
+      }),
+      today: DailyForecast(
+        date: now,
+        weatherCode: 3,
+        maxTempC: 13,
+        minTempC: 7,
+        precipitationMm: 0.4,
+        precipitationProbabilityMax: 20,
+        maxWindKph: 18,
+        uvIndexMax: 2.5,
+        sunrise: DateTime(2026, 3, 19, 6, 18),
+        sunset: DateTime(2026, 3, 19, 18, 9),
+      ),
+      daily: <DailyForecast>[
+        DailyForecast(
+          date: DateTime(2026, 3, 19),
+          weatherCode: 3,
+          maxTempC: 13,
+          minTempC: 7,
+          precipitationMm: 0.4,
+          precipitationProbabilityMax: 20,
+          maxWindKph: 18,
+          uvIndexMax: 2.5,
+          sunrise: DateTime(2026, 3, 19, 6, 18),
+          sunset: DateTime(2026, 3, 19, 18, 9),
+        ),
+        DailyForecast(
+          date: DateTime(2026, 3, 20),
+          weatherCode: 3,
+          maxTempC: 14,
+          minTempC: 8,
+          precipitationMm: 0.5,
+          precipitationProbabilityMax: 25,
+          maxWindKph: 20,
+          uvIndexMax: 2.8,
+          sunrise: DateTime(2026, 3, 20, 6, 16),
+          sunset: DateTime(2026, 3, 20, 18, 10),
+        ),
+        DailyForecast(
+          date: DateTime(2026, 3, 21),
+          weatherCode: 1,
+          maxTempC: 17,
+          minTempC: 9,
+          precipitationMm: 0.1,
+          precipitationProbabilityMax: 15,
+          maxWindKph: 16,
+          uvIndexMax: 3.8,
+          sunrise: DateTime(2026, 3, 21, 6, 14),
+          sunset: DateTime(2026, 3, 21, 18, 12),
+        ),
+        DailyForecast(
+          date: DateTime(2026, 3, 22),
+          weatherCode: 61,
+          maxTempC: 12,
+          minTempC: 7,
+          precipitationMm: 5.2,
+          precipitationProbabilityMax: 78,
+          maxWindKph: 32,
+          uvIndexMax: 1.6,
+          sunrise: DateTime(2026, 3, 22, 6, 12),
+          sunset: DateTime(2026, 3, 22, 18, 14),
+        ),
+      ],
+    );
+
+    final guidance = advisor.build(
+      report,
+      commuteWindows: savedWindows,
+      explanationMode: ExplanationMode.simple,
+    );
+
+    expect(guidance.weekendPlanner, isNotNull);
+    expect(guidance.weekendPlanner!.days, hasLength(2));
+    expect(guidance.weekendPlanner!.title, contains('Saturday'));
+    expect(guidance.weekendPlanner!.days.first.label, 'Saturday');
+    expect(guidance.weekendPlanner!.days.last.label, 'Sunday');
   });
 }

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/display_settings_controller.dart';
 import '../../../core/utils/formatters.dart';
 import '../data/weather_repository.dart';
 import '../domain/weather_describer.dart';
@@ -12,9 +13,14 @@ import '../domain/weather_models.dart';
 import 'weather_dashboard_controller.dart';
 
 class WeatherDashboardPage extends StatefulWidget {
-  const WeatherDashboardPage({super.key, required this.preferences});
+  const WeatherDashboardPage({
+    super.key,
+    required this.preferences,
+    required this.displaySettings,
+  });
 
   final SharedPreferences preferences;
+  final DisplaySettingsController displaySettings;
 
   @override
   State<WeatherDashboardPage> createState() => _WeatherDashboardPageState();
@@ -77,6 +83,37 @@ class _WeatherDashboardPageState extends State<WeatherDashboardPage> {
     }
   }
 
+  Future<void> _openComparisonPicker() async {
+    final picked = await showModalBottomSheet<WeatherLocation>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return LocationSearchSheet(
+          repository: _repository,
+          selectedLocation: _controller.comparisonLocation ?? _controller.selectedLocation,
+        );
+      },
+    );
+
+    if (picked != null) {
+      await _controller.setComparisonLocation(picked);
+    }
+  }
+
+  Future<void> _openDisplaySettings() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return DisplaySettingsSheet(
+          settings: widget.displaySettings,
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -94,16 +131,8 @@ class _WeatherDashboardPageState extends State<WeatherDashboardPage> {
         final guidance = _controller.guidance!;
         return Scaffold(
           body: DecoratedBox(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: <Color>[
-                  AppPalette.midnight,
-                  Color(0xFF0D2231),
-                  AppPalette.deepSea,
-                ],
-              ),
+            decoration: BoxDecoration(
+              gradient: _pageBackgroundGradient(context),
             ),
             child: Stack(
               children: <Widget>[
@@ -118,9 +147,14 @@ class _WeatherDashboardPageState extends State<WeatherDashboardPage> {
                         _HeroCard(
                           report: report,
                           guidance: guidance,
+                          explanationMode: _controller.explanationMode,
                           refreshing: _controller.isRefreshing,
                           onRefresh: _controller.refresh,
                           onPickLocation: _openLocationPicker,
+                          onOpenDisplaySettings: _openDisplaySettings,
+                          onExplanationModeChanged: (mode) {
+                            unawaited(_controller.setExplanationMode(mode));
+                          },
                         ),
                         const SizedBox(height: 16),
                         _WidgetSummaryStrip(guidance: guidance),
@@ -129,18 +163,40 @@ class _WeatherDashboardPageState extends State<WeatherDashboardPage> {
                           builder: (context, constraints) {
                             final wide = constraints.maxWidth >= 940;
                             final leftColumn = <Widget>[
-                              _NextHourCard(report: report, guidance: guidance),
+                              _NextHourCard(
+                                report: report,
+                                guidance: guidance,
+                                explanationMode: _controller.explanationMode,
+                              ),
                               const SizedBox(height: 16),
                               _DryWindowCard(guidance: guidance),
                               const SizedBox(height: 16),
-                              _DailyGuidanceCard(guidance: guidance),
+                              _DailyGuidanceCard(
+                                guidance: guidance,
+                                explanationMode: _controller.explanationMode,
+                              ),
+                              const SizedBox(height: 16),
+                              _WeekendPlannerCard(guidance: guidance),
                               const SizedBox(height: 16),
                               _WearCard(guidance: guidance),
                               const SizedBox(height: 16),
                               _RiskCard(guidance: guidance),
                             ];
                             final rightColumn = <Widget>[
-                              _HourlyStripCard(guidance: guidance),
+                              _HourlyStripCard(
+                                guidance: guidance,
+                                explanationMode: _controller.explanationMode,
+                              ),
+                              const SizedBox(height: 16),
+                              _CompareCitiesCard(
+                                primaryReport: report,
+                                primaryGuidance: guidance,
+                                comparisonLocation: _controller.comparisonLocation,
+                                comparisonReport: _controller.comparisonReport,
+                                comparisonGuidance: _controller.comparisonGuidance,
+                                onChooseLocation: _openComparisonPicker,
+                                onClear: _controller.clearComparisonLocation,
+                              ),
                               const SizedBox(height: 16),
                               _CommuteCard(
                                 guidance: guidance,
@@ -152,13 +208,35 @@ class _WeatherDashboardPageState extends State<WeatherDashboardPage> {
                               _FooterNote(report: report),
                             ];
                             final narrowCards = <Widget>[
-                              _NextHourCard(report: report, guidance: guidance),
+                              _NextHourCard(
+                                report: report,
+                                guidance: guidance,
+                                explanationMode: _controller.explanationMode,
+                              ),
                               const SizedBox(height: 16),
-                              _HourlyStripCard(guidance: guidance),
+                              _HourlyStripCard(
+                                guidance: guidance,
+                                explanationMode: _controller.explanationMode,
+                              ),
                               const SizedBox(height: 16),
                               _DryWindowCard(guidance: guidance),
                               const SizedBox(height: 16),
-                              _DailyGuidanceCard(guidance: guidance),
+                              _DailyGuidanceCard(
+                                guidance: guidance,
+                                explanationMode: _controller.explanationMode,
+                              ),
+                              const SizedBox(height: 16),
+                              _CompareCitiesCard(
+                                primaryReport: report,
+                                primaryGuidance: guidance,
+                                comparisonLocation: _controller.comparisonLocation,
+                                comparisonReport: _controller.comparisonReport,
+                                comparisonGuidance: _controller.comparisonGuidance,
+                                onChooseLocation: _openComparisonPicker,
+                                onClear: _controller.clearComparisonLocation,
+                              ),
+                              const SizedBox(height: 16),
+                              _WeekendPlannerCard(guidance: guidance),
                               const SizedBox(height: 16),
                               _CommuteCard(
                                 guidance: guidance,
@@ -205,20 +283,280 @@ class _WeatherDashboardPageState extends State<WeatherDashboardPage> {
   }
 }
 
+LinearGradient _pageBackgroundGradient(BuildContext context) {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  return isDark
+      ? const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[
+            AppPalette.midnight,
+            Color(0xFF0D2231),
+            AppPalette.deepSea,
+          ],
+        )
+      : const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[
+            AppPalette.dawn,
+            Color(0xFFF7FBFE),
+            AppPalette.pearl,
+          ],
+        );
+}
+
+LinearGradient _glassGradient(
+  BuildContext context, {
+  bool prominent = false,
+}) {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  if (isDark && prominent) {
+    return LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: <Color>[
+        Colors.white.withValues(alpha: 0.12),
+        Colors.white.withValues(alpha: 0.04),
+      ],
+    );
+  }
+  if (isDark) {
+    return LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: <Color>[
+        Colors.white.withValues(alpha: 0.09),
+        Colors.white.withValues(alpha: 0.03),
+      ],
+    );
+  }
+  if (prominent) {
+    return const LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: <Color>[
+        Color(0xF9FFFFFF),
+        Color(0xF3F3FAFF),
+      ],
+    );
+  }
+  return const LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: <Color>[
+      Color(0xF7FFFFFF),
+      Color(0xEEF1F7FB),
+    ],
+  );
+}
+
+Color _surfaceFill(BuildContext context, {bool strong = false}) {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  if (isDark) {
+    return Colors.white.withValues(alpha: strong ? 0.08 : 0.05);
+  }
+  return strong
+      ? const Color(0xFFF9FCFF)
+      : const Color(0xF2FFFFFF);
+}
+
+Color _surfaceBorder(BuildContext context) {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  return isDark
+      ? Colors.white.withValues(alpha: 0.08)
+      : AppPalette.ink.withValues(alpha: 0.08);
+}
+
+Color _sheetBackground(BuildContext context) {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  return isDark ? const Color(0xFF081520) : const Color(0xFFF5F9FD);
+}
+
+Color _sheetHandle(BuildContext context) {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  return isDark
+      ? Colors.white.withValues(alpha: 0.22)
+      : AppPalette.ink.withValues(alpha: 0.18);
+}
+
+Color _ambientOrbColor(BuildContext context, Color darkColor, Color lightColor) {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  return isDark ? darkColor : lightColor;
+}
+
+Color _glowShadow(BuildContext context) {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  return isDark ? AppPalette.glow : AppPalette.ink.withValues(alpha: 0.08);
+}
+
+String _comfortSummary(double apparentTemperatureC) {
+  if (apparentTemperatureC <= 1) {
+    return 'Very cold';
+  }
+  if (apparentTemperatureC <= 7) {
+    return 'Chilly';
+  }
+  if (apparentTemperatureC <= 13) {
+    return 'Cool';
+  }
+  if (apparentTemperatureC <= 19) {
+    return 'Mild';
+  }
+  if (apparentTemperatureC <= 25) {
+    return 'Warm';
+  }
+  return 'Hot';
+}
+
+String _windSummary(double windSpeedKph) {
+  if (windSpeedKph < 12) {
+    return 'Light';
+  }
+  if (windSpeedKph < 24) {
+    return 'Breezy';
+  }
+  if (windSpeedKph < 36) {
+    return 'Windy';
+  }
+  return 'Very windy';
+}
+
+String _dayAheadSummary(DailyForecast today) {
+  if (today.precipitationProbabilityMax >= 70 || today.precipitationMm >= 4) {
+    return 'Wet spells';
+  }
+  if (today.precipitationProbabilityMax >= 35 || today.precipitationMm >= 1) {
+    return 'Changeable';
+  }
+  return 'Mostly dry';
+}
+
+String _visibilitySummary(double meters) {
+  if (meters < 1500) {
+    return 'Poor';
+  }
+  if (meters < 6000) {
+    return 'A bit murky';
+  }
+  return 'Clear';
+}
+
+String _rainSummary(double millimetres) {
+  if (millimetres < 0.08) {
+    return 'Dry';
+  }
+  if (millimetres < 0.35) {
+    return 'Light showers';
+  }
+  if (millimetres < 1) {
+    return 'Rainy';
+  }
+  return 'Heavy rain';
+}
+
+String _hourlyOutlookLabel(HourlyForecast slot) {
+  if (slot.precipitationMm >= 0.8 || slot.precipitationProbability >= 70) {
+    return 'Wet';
+  }
+  if (slot.precipitationMm >= 0.08 || slot.precipitationProbability >= 35) {
+    return 'Showers';
+  }
+  final descriptor = describeWeatherCode(
+    slot.weatherCode,
+    isDay: slot.isDay,
+  );
+  if (descriptor.label.toLowerCase().contains('clear') ||
+      descriptor.label.toLowerCase().contains('sun')) {
+    return 'Bright';
+  }
+  if (slot.cloudCover >= 70) {
+    return 'Cloudy';
+  }
+  return 'Dry';
+}
+
+int _outdoorReadinessScore(WeatherReport report, WeatherGuidance guidance) {
+  var score = 60;
+  score += guidance.nextHour.tone == AdviceTone.go
+      ? 12
+      : guidance.nextHour.tone == AdviceTone.watch
+          ? 3
+          : -12;
+  score += guidance.dryWindow.isAvailable
+      ? guidance.dryWindow.duration.inMinutes >= 120
+          ? 14
+          : 6
+      : -8;
+  score -= report.today.precipitationProbabilityMax >= 70
+      ? 16
+      : report.today.precipitationProbabilityMax >= 40
+          ? 8
+          : 0;
+  score -= report.today.maxWindKph >= 34
+      ? 10
+      : report.today.maxWindKph >= 24
+          ? 5
+          : 0;
+  score += report.today.maxTempC >= 13 && report.today.maxTempC <= 22 ? 5 : 0;
+  return score.clamp(0, 100);
+}
+
+String _comparisonHeadline(
+  WeatherReport primaryReport,
+  WeatherGuidance primaryGuidance,
+  WeatherReport comparisonReport,
+  WeatherGuidance comparisonGuidance,
+) {
+  final primaryScore = _outdoorReadinessScore(primaryReport, primaryGuidance);
+  final comparisonScore = _outdoorReadinessScore(comparisonReport, comparisonGuidance);
+  final diff = (primaryScore - comparisonScore).abs();
+  if (diff < 8) {
+    return 'Both cities look fairly close today';
+  }
+  final winner = primaryScore > comparisonScore ? primaryReport.location.name : comparisonReport.location.name;
+  return '$winner looks like the easier outdoor choice';
+}
+
+String _comparisonDetail(
+  WeatherReport primaryReport,
+  WeatherGuidance primaryGuidance,
+  WeatherReport comparisonReport,
+  WeatherGuidance comparisonGuidance,
+) {
+  final warmer = primaryReport.today.maxTempC >= comparisonReport.today.maxTempC
+      ? primaryReport.location.name
+      : comparisonReport.location.name;
+  final drier = primaryReport.today.precipitationProbabilityMax <=
+          comparisonReport.today.precipitationProbabilityMax
+      ? primaryReport.location.name
+      : comparisonReport.location.name;
+  final betterDrySlot = primaryGuidance.dryWindow.duration >= comparisonGuidance.dryWindow.duration
+      ? primaryReport.location.name
+      : comparisonReport.location.name;
+  return '$warmer is warmer, $drier has the lower rain risk, and $betterDrySlot has the stronger dry slot.';
+}
+
 class _HeroCard extends StatelessWidget {
   const _HeroCard({
     required this.report,
     required this.guidance,
+    required this.explanationMode,
     required this.refreshing,
     required this.onRefresh,
     required this.onPickLocation,
+    required this.onOpenDisplaySettings,
+    required this.onExplanationModeChanged,
   });
 
   final WeatherReport report;
   final WeatherGuidance guidance;
+  final ExplanationMode explanationMode;
   final bool refreshing;
   final Future<void> Function() onRefresh;
   final VoidCallback onPickLocation;
+  final VoidCallback onOpenDisplaySettings;
+  final ValueChanged<ExplanationMode> onExplanationModeChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -227,16 +565,54 @@ class _HeroCard extends StatelessWidget {
       isDay: report.current.isDay,
     );
     final theme = Theme.of(context);
+    final metricTiles = explanationMode == ExplanationMode.detailed
+        ? <Widget>[
+            _MetricTile(
+              label: 'Feels like',
+              value: formatTemperature(report.current.apparentTemperatureC),
+              icon: Icons.device_thermostat_rounded,
+            ),
+            _MetricTile(
+              label: 'Wind',
+              value: formatWind(report.current.windSpeedKph),
+              icon: Icons.air_rounded,
+            ),
+            _MetricTile(
+              label: 'Rain today',
+              value: formatRain(report.today.precipitationMm),
+              icon: Icons.water_drop_rounded,
+            ),
+            _MetricTile(
+              label: 'Updated',
+              value: formatCompactClock(report.fetchedAt),
+              icon: Icons.schedule_rounded,
+            ),
+          ]
+        : <Widget>[
+            _MetricTile(
+              label: 'Comfort',
+              value: _comfortSummary(report.current.apparentTemperatureC),
+              icon: Icons.self_improvement_rounded,
+            ),
+            _MetricTile(
+              label: 'Wind feel',
+              value: _windSummary(report.current.windSpeedKph),
+              icon: Icons.air_rounded,
+            ),
+            _MetricTile(
+              label: 'Day ahead',
+              value: _dayAheadSummary(report.today),
+              icon: Icons.event_available_rounded,
+            ),
+            _MetricTile(
+              label: 'Updated',
+              value: formatCompactClock(report.fetchedAt),
+              icon: Icons.schedule_rounded,
+            ),
+          ];
 
     return GlassCard(
-      gradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: <Color>[
-          Colors.white.withValues(alpha: 0.12),
-          Colors.white.withValues(alpha: 0.04),
-        ],
-      ),
+      gradient: _glassGradient(context, prominent: true),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -273,6 +649,12 @@ class _HeroCard extends StatelessWidget {
                 icon: Icon(refreshing ? Icons.sync_rounded : Icons.refresh_rounded),
                 label: Text(refreshing ? 'Refreshing' : 'Refresh'),
               ),
+              const SizedBox(width: 10),
+              IconButton.filledTonal(
+                onPressed: onOpenDisplaySettings,
+                icon: const Icon(Icons.tune_rounded),
+                tooltip: 'Display settings',
+              ),
             ],
           ),
           const SizedBox(height: 18),
@@ -295,6 +677,89 @@ class _HeroCard extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: 18),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: _surfaceFill(context),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: _surfaceBorder(context)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Container(
+                      height: 42,
+                      width: 42,
+                      decoration: BoxDecoration(
+                        color: _surfaceFill(context, strong: true),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Icon(
+                        explanationMode == ExplanationMode.simple
+                            ? Icons.chat_bubble_outline_rounded
+                            : Icons.tune_rounded,
+                        color: AppPalette.sky,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text('Explanation mode', style: theme.textTheme.titleMedium),
+                          const SizedBox(height: 2),
+                          Text(
+                            explanationMode.description,
+                            style: theme.textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                SegmentedButton<ExplanationMode>(
+                  showSelectedIcon: false,
+                  segments: const <ButtonSegment<ExplanationMode>>[
+                    ButtonSegment<ExplanationMode>(
+                      value: ExplanationMode.simple,
+                      icon: Icon(Icons.auto_awesome_outlined),
+                      label: Text('Simple'),
+                    ),
+                    ButtonSegment<ExplanationMode>(
+                      value: ExplanationMode.detailed,
+                      icon: Icon(Icons.tune_rounded),
+                      label: Text('Detailed'),
+                    ),
+                  ],
+                  selected: <ExplanationMode>{explanationMode},
+                  onSelectionChanged: (selection) {
+                    if (selection.isNotEmpty) {
+                      onExplanationModeChanged(selection.first);
+                    }
+                  },
+                  style: ButtonStyle(
+                    foregroundColor: WidgetStateProperty.resolveWith(
+                      (states) => Colors.white,
+                    ),
+                    backgroundColor: WidgetStateProperty.resolveWith((states) {
+                      if (states.contains(WidgetState.selected)) {
+                      return AppPalette.sky.withValues(alpha: 0.18);
+                      }
+                      return _surfaceFill(context);
+                    }),
+                    side: WidgetStateProperty.resolveWith(
+                      (states) => BorderSide(color: _surfaceBorder(context)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 28),
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
@@ -303,7 +768,7 @@ class _HeroCard extends StatelessWidget {
                 height: 74,
                 width: 74,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.08),
+                  color: _surfaceFill(context, strong: true),
                   borderRadius: BorderRadius.circular(22),
                 ),
                 child: Icon(descriptor.icon, size: 38, color: AppPalette.sky),
@@ -336,28 +801,7 @@ class _HeroCard extends StatelessWidget {
           Wrap(
             spacing: 12,
             runSpacing: 12,
-            children: <Widget>[
-              _MetricTile(
-                label: 'Feels like',
-                value: formatTemperature(report.current.apparentTemperatureC),
-                icon: Icons.device_thermostat_rounded,
-              ),
-              _MetricTile(
-                label: 'Wind',
-                value: formatWind(report.current.windSpeedKph),
-                icon: Icons.air_rounded,
-              ),
-              _MetricTile(
-                label: 'Rain today',
-                value: formatRain(report.today.precipitationMm),
-                icon: Icons.water_drop_rounded,
-              ),
-              _MetricTile(
-                label: 'Updated',
-                value: formatCompactClock(report.fetchedAt),
-                icon: Icons.schedule_rounded,
-              ),
-            ],
+            children: metricTiles,
           ),
           const SizedBox(height: 20),
           Row(
@@ -415,10 +859,15 @@ class _WidgetSummaryStrip extends StatelessWidget {
 }
 
 class _NextHourCard extends StatelessWidget {
-  const _NextHourCard({required this.report, required this.guidance});
+  const _NextHourCard({
+    required this.report,
+    required this.guidance,
+    required this.explanationMode,
+  });
 
   final WeatherReport report;
   final WeatherGuidance guidance;
+  final ExplanationMode explanationMode;
 
   @override
   Widget build(BuildContext context) {
@@ -501,11 +950,17 @@ class _NextHourCard extends StatelessWidget {
           Wrap(
             spacing: 12,
             runSpacing: 12,
-            children: <Widget>[
-              _MiniStat(label: 'Max burst', value: formatRain(guidance.nextHour.maxPrecipitationMm)),
-              _MiniStat(label: 'Visibility', value: formatVisibility(report.current.visibilityMeters)),
-              _MiniStat(label: 'Wind', value: formatWind(report.current.windSpeedKph)),
-            ],
+            children: explanationMode == ExplanationMode.detailed
+                ? <Widget>[
+                    _MiniStat(label: 'Max burst', value: formatRain(guidance.nextHour.maxPrecipitationMm)),
+                    _MiniStat(label: 'Visibility', value: formatVisibility(report.current.visibilityMeters)),
+                    _MiniStat(label: 'Wind', value: formatWind(report.current.windSpeedKph)),
+                  ]
+                : <Widget>[
+                    _MiniStat(label: 'Rain outlook', value: _rainSummary(guidance.nextHour.maxPrecipitationMm)),
+                    _MiniStat(label: 'Air clarity', value: _visibilitySummary(report.current.visibilityMeters)),
+                    _MiniStat(label: 'Wind feel', value: _windSummary(report.current.windSpeedKph)),
+                  ],
           ),
         ],
       ),
@@ -566,9 +1021,13 @@ class _DryWindowCard extends StatelessWidget {
 }
 
 class _HourlyStripCard extends StatelessWidget {
-  const _HourlyStripCard({required this.guidance});
+  const _HourlyStripCard({
+    required this.guidance,
+    required this.explanationMode,
+  });
 
   final WeatherGuidance guidance;
+  final ExplanationMode explanationMode;
 
   @override
   Widget build(BuildContext context) {
@@ -594,9 +1053,9 @@ class _HourlyStripCard extends StatelessWidget {
                 width: 94,
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.05),
+                  color: _surfaceFill(context),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                  border: Border.all(color: _surfaceBorder(context)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -614,7 +1073,9 @@ class _HourlyStripCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      formatPercent(slot.precipitationProbability),
+                      explanationMode == ExplanationMode.detailed
+                          ? formatPercent(slot.precipitationProbability)
+                          : _hourlyOutlookLabel(slot),
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],
@@ -629,9 +1090,13 @@ class _HourlyStripCard extends StatelessWidget {
 }
 
 class _DailyGuidanceCard extends StatelessWidget {
-  const _DailyGuidanceCard({required this.guidance});
+  const _DailyGuidanceCard({
+    required this.guidance,
+    required this.explanationMode,
+  });
 
   final WeatherGuidance guidance;
+  final ExplanationMode explanationMode;
 
   @override
   Widget build(BuildContext context) {
@@ -639,9 +1104,11 @@ class _DailyGuidanceCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          const _SectionHeader(
+          _SectionHeader(
             eyebrow: 'Simple Daily Guidance',
-            title: 'Plain English, not weather jargon',
+            title: explanationMode == ExplanationMode.simple
+                ? 'Plain English, not weather jargon'
+                : 'Detailed weather mode',
             icon: Icons.chat_bubble_outline_rounded,
           ),
           const SizedBox(height: 18),
@@ -649,6 +1116,235 @@ class _DailyGuidanceCard extends StatelessWidget {
             guidance.simpleSummary,
             style: Theme.of(context).textTheme.headlineSmall,
           ),
+          const SizedBox(height: 10),
+          Text(
+            explanationMode.description,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WeekendPlannerCard extends StatelessWidget {
+  const _WeekendPlannerCard({required this.guidance});
+
+  final WeatherGuidance guidance;
+
+  @override
+  Widget build(BuildContext context) {
+    final planner = guidance.weekendPlanner;
+    return GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const _SectionHeader(
+            eyebrow: 'Weekend Planner',
+            title: 'Pick the better day ahead',
+            icon: Icons.calendar_view_week_rounded,
+          ),
+          const SizedBox(height: 18),
+          if (planner == null) ...<Widget>[
+            Text(
+              'Weekend outlook unavailable',
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Dry Slots needs a longer-range forecast before it can guide weekend plans.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ] else ...<Widget>[
+            Text(
+              planner.title,
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              planner.summary,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: planner.days.map((day) {
+                return ConstrainedBox(
+                  constraints: const BoxConstraints(minWidth: 240, maxWidth: 320),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: _surfaceFill(context),
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(color: _surfaceBorder(context)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Row(
+                          children: <Widget>[
+                            Container(
+                              height: 42,
+                              width: 42,
+                              decoration: BoxDecoration(
+                                color: _surfaceFill(context, strong: true),
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Icon(day.icon, color: AppPalette.sky),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  Text(day.label, style: Theme.of(context).textTheme.titleMedium),
+                                  const SizedBox(height: 2),
+                                  Text(day.headline, style: Theme.of(context).textTheme.bodySmall),
+                                ],
+                              ),
+                            ),
+                            _TonePill(
+                              tone: day.tone,
+                              label: '${day.maxTempC.round()}°',
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Text(day.summary, style: Theme.of(context).textTheme.bodySmall),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(growable: false),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _CompareCitiesCard extends StatelessWidget {
+  const _CompareCitiesCard({
+    required this.primaryReport,
+    required this.primaryGuidance,
+    required this.comparisonLocation,
+    required this.comparisonReport,
+    required this.comparisonGuidance,
+    required this.onChooseLocation,
+    required this.onClear,
+  });
+
+  final WeatherReport primaryReport;
+  final WeatherGuidance primaryGuidance;
+  final WeatherLocation? comparisonLocation;
+  final WeatherReport? comparisonReport;
+  final WeatherGuidance? comparisonGuidance;
+  final VoidCallback onChooseLocation;
+  final Future<void> Function() onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              const Expanded(
+                child: _SectionHeader(
+                  eyebrow: 'Compare Two Cities',
+                  title: 'See which place looks better',
+                  icon: Icons.compare_arrows_rounded,
+                ),
+              ),
+              const SizedBox(width: 12),
+              FilledButton.tonalIcon(
+                onPressed: onChooseLocation,
+                icon: const Icon(Icons.add_location_alt_rounded),
+                label: Text(comparisonReport == null ? 'Choose' : 'Change'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          if (comparisonReport == null || comparisonGuidance == null) ...<Widget>[
+            Text(
+              'Compare today with another UK city',
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Useful for checking where the better dry slot, calmer commute, or warmer plan window is.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ] else ...<Widget>[
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: _ComparisonCityTile(
+                    location: primaryReport.location,
+                    report: primaryReport,
+                    guidance: primaryGuidance,
+                    isPrimary: true,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _ComparisonCityTile(
+                    location: comparisonReport!.location,
+                    report: comparisonReport!,
+                    guidance: comparisonGuidance!,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: _surfaceFill(context),
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: _surfaceBorder(context)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    _comparisonHeadline(
+                      primaryReport,
+                      primaryGuidance,
+                      comparisonReport!,
+                      comparisonGuidance!,
+                    ),
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _comparisonDetail(
+                      primaryReport,
+                      primaryGuidance,
+                      comparisonReport!,
+                      comparisonGuidance!,
+                    ),
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () {
+                  unawaited(onClear());
+                },
+                icon: const Icon(Icons.close_rounded),
+                label: const Text('Clear comparison'),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -728,9 +1424,9 @@ class _WearCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.05),
+              color: _surfaceFill(context),
               borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              border: Border.all(color: _surfaceBorder(context)),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -739,7 +1435,7 @@ class _WearCard extends StatelessWidget {
                   height: 54,
                   width: 54,
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.08),
+                    color: _surfaceFill(context, strong: true),
                     borderRadius: BorderRadius.circular(18),
                   ),
                   child: Icon(primaryTip.icon, color: AppPalette.teal),
@@ -775,7 +1471,7 @@ class _WearCard extends StatelessWidget {
                     height: 42,
                     width: 42,
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.08),
+                      color: _surfaceFill(context, strong: true),
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: Icon(tip.icon, color: AppPalette.teal),
@@ -925,9 +1621,9 @@ class _CommuteTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
+        color: _surfaceFill(context),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        border: Border.all(color: _surfaceBorder(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -963,6 +1659,70 @@ class _CommuteTile extends StatelessWidget {
   }
 }
 
+class _ComparisonCityTile extends StatelessWidget {
+  const _ComparisonCityTile({
+    required this.location,
+    required this.report,
+    required this.guidance,
+    this.isPrimary = false,
+  });
+
+  final WeatherLocation location;
+  final WeatherReport report;
+  final WeatherGuidance guidance;
+  final bool isPrimary;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _surfaceFill(context),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: isPrimary
+              ? AppPalette.sky.withValues(alpha: 0.3)
+              : _surfaceBorder(context),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: Text(location.name, style: Theme.of(context).textTheme.titleLarge),
+              ),
+              if (isPrimary)
+                _SourcePill(
+                  label: 'Current',
+                  color: AppPalette.sky,
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            formatTemperature(report.current.temperatureC),
+            style: Theme.of(context).textTheme.headlineMedium,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            guidance.nextHour.departureAdvice,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            guidance.dryWindow.headline,
+            style: Theme.of(context).textTheme.bodySmall,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ActivityTile extends StatelessWidget {
   const _ActivityTile({required this.activity});
 
@@ -984,9 +1744,9 @@ class _ActivityTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
+        color: _surfaceFill(context),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        border: Border.all(color: _surfaceBorder(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1037,9 +1797,9 @@ class _WidgetSummaryTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
+        color: _surfaceFill(context),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        border: Border.all(color: _surfaceBorder(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1126,9 +1886,9 @@ class _MetricTile extends StatelessWidget {
       constraints: const BoxConstraints(minWidth: 132),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
+        color: _surfaceFill(context),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        border: Border.all(color: _surfaceBorder(context)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1160,9 +1920,9 @@ class _MiniStat extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
+        color: _surfaceFill(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        border: Border.all(color: _surfaceBorder(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1220,9 +1980,9 @@ class _SoftChip extends StatelessWidget {
     final content = Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.06),
+        color: _surfaceFill(context, strong: true),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        border: Border.all(color: _surfaceBorder(context)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1265,20 +2025,12 @@ class GlassCard extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(22),
           decoration: BoxDecoration(
-            gradient: gradient ??
-                LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: <Color>[
-                    Colors.white.withValues(alpha: 0.09),
-                    Colors.white.withValues(alpha: 0.03),
-                  ],
-                ),
+            gradient: gradient ?? _glassGradient(context),
             borderRadius: BorderRadius.circular(30),
-            border: Border.all(color: AppPalette.border),
-            boxShadow: const <BoxShadow>[
+            border: Border.all(color: _surfaceBorder(context)),
+            boxShadow: <BoxShadow>[
               BoxShadow(
-                color: AppPalette.glow,
+                color: _glowShadow(context),
                 blurRadius: 26,
                 offset: Offset(0, 14),
               ),
@@ -1310,7 +2062,7 @@ class _SectionHeader extends StatelessWidget {
           height: 40,
           width: 40,
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.06),
+            color: _surfaceFill(context, strong: true),
             borderRadius: BorderRadius.circular(14),
           ),
           child: Icon(icon, color: AppPalette.sky),
@@ -1339,30 +2091,22 @@ class _LoadingView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
+    return Scaffold(
       body: DecoratedBox(
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: <Color>[
-              AppPalette.midnight,
-              AppPalette.deepSea,
-              Color(0xFF163A4D),
-            ],
-          ),
+          gradient: _pageBackgroundGradient(context),
         ),
         child: Stack(
           children: <Widget>[
-            _AmbientBackground(),
+            const _AmbientBackground(),
             Center(
               child: Padding(
-                padding: EdgeInsets.all(28),
+                padding: const EdgeInsets.all(28),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
-                    CircularProgressIndicator(strokeWidth: 3),
-                    SizedBox(height: 22),
+                    const CircularProgressIndicator(strokeWidth: 3),
+                    const SizedBox(height: 22),
                     Text(
                       'Building your weather day plan...',
                       textAlign: TextAlign.center,
@@ -1387,15 +2131,8 @@ class _ErrorView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: DecoratedBox(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: <Color>[
-              AppPalette.midnight,
-              AppPalette.deepSea,
-            ],
-          ),
+        decoration: BoxDecoration(
+          gradient: _pageBackgroundGradient(context),
         ),
         child: Center(
           child: Padding(
@@ -1442,7 +2179,11 @@ class _AmbientBackground extends StatelessWidget {
             left: -60,
             child: _GlowOrb(
               size: 260,
-              color: AppPalette.sky.withValues(alpha: 0.14),
+              color: _ambientOrbColor(
+                context,
+                AppPalette.sky.withValues(alpha: 0.14),
+                AppPalette.sky.withValues(alpha: 0.14),
+              ),
             ),
           ),
           Positioned(
@@ -1450,7 +2191,11 @@ class _AmbientBackground extends StatelessWidget {
             right: -90,
             child: _GlowOrb(
               size: 240,
-              color: AppPalette.teal.withValues(alpha: 0.12),
+              color: _ambientOrbColor(
+                context,
+                AppPalette.teal.withValues(alpha: 0.12),
+                AppPalette.teal.withValues(alpha: 0.12),
+              ),
             ),
           ),
           Positioned(
@@ -1458,7 +2203,11 @@ class _AmbientBackground extends StatelessWidget {
             left: 40,
             child: _GlowOrb(
               size: 280,
-              color: AppPalette.amber.withValues(alpha: 0.08),
+              color: _ambientOrbColor(
+                context,
+                AppPalette.amber.withValues(alpha: 0.08),
+                AppPalette.amber.withValues(alpha: 0.08),
+              ),
             ),
           ),
         ],
@@ -1487,6 +2236,135 @@ class _GlowOrb extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class DisplaySettingsSheet extends StatelessWidget {
+  const DisplaySettingsSheet({
+    super.key,
+    required this.settings,
+  });
+
+  final DisplaySettingsController settings;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: settings,
+      builder: (context, _) {
+        return Container(
+          decoration: BoxDecoration(
+            color: _sheetBackground(context),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+            border: Border.all(color: _surfaceBorder(context)),
+          ),
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Center(
+                    child: Container(
+                      height: 5,
+                      width: 46,
+                      decoration: BoxDecoration(
+                        color: _sheetHandle(context),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    'Display settings',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Choose a calmer light or dark look and switch on larger text for easier reading.',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 18),
+                  Text('Theme mode', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 10),
+                  SegmentedButton<ThemeMode>(
+                    showSelectedIcon: false,
+                    segments: const <ButtonSegment<ThemeMode>>[
+                      ButtonSegment<ThemeMode>(
+                        value: ThemeMode.system,
+                        icon: Icon(Icons.brightness_auto_rounded),
+                        label: Text('Adaptive'),
+                      ),
+                      ButtonSegment<ThemeMode>(
+                        value: ThemeMode.light,
+                        icon: Icon(Icons.light_mode_rounded),
+                        label: Text('Light'),
+                      ),
+                      ButtonSegment<ThemeMode>(
+                        value: ThemeMode.dark,
+                        icon: Icon(Icons.dark_mode_rounded),
+                        label: Text('Dark'),
+                      ),
+                    ],
+                    selected: <ThemeMode>{settings.themeMode},
+                    onSelectionChanged: (selection) {
+                      if (selection.isNotEmpty) {
+                        unawaited(settings.setThemeMode(selection.first));
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 18),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: _surfaceFill(context),
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(color: _surfaceBorder(context)),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Container(
+                          height: 42,
+                          width: 42,
+                          decoration: BoxDecoration(
+                            color: _surfaceFill(context, strong: true),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Icon(Icons.text_fields_rounded, color: AppPalette.sky),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text('Large text mode', style: Theme.of(context).textTheme.titleMedium),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Improves legibility across cards, sheets, and summaries.',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ],
+                          ),
+                        ),
+                        Switch.adaptive(
+                          value: settings.largeText,
+                          onChanged: (value) {
+                            unawaited(settings.setLargeText(value));
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -1552,9 +2430,9 @@ class _CommuteWindowsSheetState extends State<CommuteWindowsSheet> {
       builder: (context, scrollController) {
         return Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF081520),
+            color: _sheetBackground(context),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            border: Border.all(color: _surfaceBorder(context)),
           ),
           child: Column(
             children: <Widget>[
@@ -1563,7 +2441,7 @@ class _CommuteWindowsSheetState extends State<CommuteWindowsSheet> {
                 height: 5,
                 width: 46,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.22),
+                  color: _sheetHandle(context),
                   borderRadius: BorderRadius.circular(999),
                 ),
               ),
@@ -1616,9 +2494,9 @@ class _CommuteWindowsSheetState extends State<CommuteWindowsSheet> {
                     return Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.05),
+                        color: _surfaceFill(context),
                         borderRadius: BorderRadius.circular(22),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                        border: Border.all(color: _surfaceBorder(context)),
                       ),
                       child: Row(
                         children: <Widget>[
@@ -1632,7 +2510,7 @@ class _CommuteWindowsSheetState extends State<CommuteWindowsSheet> {
                                     height: 44,
                                     width: 44,
                                     decoration: BoxDecoration(
-                                      color: Colors.white.withValues(alpha: 0.06),
+                                      color: _surfaceFill(context, strong: true),
                                       borderRadius: BorderRadius.circular(14),
                                     ),
                                     child: const Icon(Icons.schedule_rounded, color: AppPalette.sky),
@@ -1765,9 +2643,9 @@ class _CommuteWindowEditorSheetState extends State<CommuteWindowEditorSheet> {
       padding: EdgeInsets.only(bottom: bottomInset),
       child: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFF081520),
+          color: _sheetBackground(context),
           borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          border: Border.all(color: _surfaceBorder(context)),
         ),
         child: SafeArea(
           top: false,
@@ -1846,9 +2724,9 @@ class _TimeField extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.06),
+          color: _surfaceFill(context, strong: true),
           borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+          border: Border.all(color: _surfaceBorder(context)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1963,9 +2841,9 @@ class _LocationSearchSheetState extends State<LocationSearchSheet> {
       builder: (context, scrollController) {
         return Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF081520),
+            color: _sheetBackground(context),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            border: Border.all(color: _surfaceBorder(context)),
           ),
           child: Column(
             children: <Widget>[
@@ -1974,7 +2852,7 @@ class _LocationSearchSheetState extends State<LocationSearchSheet> {
                 height: 5,
                 width: 46,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.22),
+                  color: _sheetHandle(context),
                   borderRadius: BorderRadius.circular(999),
                 ),
               ),
@@ -2026,13 +2904,13 @@ class _LocationSearchSheetState extends State<LocationSearchSheet> {
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           color: selected
-                              ? Colors.white.withValues(alpha: 0.1)
-                              : Colors.white.withValues(alpha: 0.05),
+                              ? _surfaceFill(context, strong: true)
+                              : _surfaceFill(context),
                           borderRadius: BorderRadius.circular(22),
                           border: Border.all(
                             color: selected
                                 ? AppPalette.sky.withValues(alpha: 0.45)
-                                : Colors.white.withValues(alpha: 0.08),
+                                : _surfaceBorder(context),
                           ),
                         ),
                         child: Row(
@@ -2041,7 +2919,7 @@ class _LocationSearchSheetState extends State<LocationSearchSheet> {
                               height: 44,
                               width: 44,
                               decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.06),
+                                color: _surfaceFill(context, strong: true),
                                 borderRadius: BorderRadius.circular(14),
                               ),
                               child: const Icon(Icons.place_rounded, color: AppPalette.sky),

@@ -31,7 +31,7 @@ class OpenMeteoWeatherRepository implements WeatherRepository {
         'latitude': location.latitude.toStringAsFixed(4),
         'longitude': location.longitude.toStringAsFixed(4),
         'timezone': location.timezone,
-        'forecast_days': '2',
+        'forecast_days': '7',
         'forecast_minutely_15': '8',
         'current':
             'temperature_2m,apparent_temperature,is_day,precipitation,rain,showers,weather_code,cloud_cover,wind_speed_10m,wind_gusts_10m,visibility',
@@ -139,6 +139,7 @@ class OpenMeteoWeatherRepository implements WeatherRepository {
       minutely: minutely,
       hourly: hourly,
       today: daily.first,
+      daily: daily,
       usingFallback: false,
       sourceLabel: 'Live weather by Open-Meteo',
       officialWarnings: officialWarnings,
@@ -549,8 +550,36 @@ class DemoWeatherRepository implements WeatherRepository {
       );
     }, growable: false);
 
-    final sunrise = DateTime(now.year, now.month, now.day, 6, 28);
-    final sunset = DateTime(now.year, now.month, now.day, 18, 9);
+    final daily = List<DailyForecast>.generate(7, (index) {
+      final date = DateTime(now.year, now.month, now.day).add(Duration(days: index));
+      final weekend = date.weekday >= DateTime.saturday;
+      final unsettled = index == 0 || index == 4;
+      final bright = date.weekday == DateTime.saturday;
+      final maxTemp = 14 + sin((index + drift) / 2) * 2 + (bright ? 2 : 0);
+      final minTemp = 6 + sin((index + drift) / 2);
+      final rain = unsettled ? 3.2 + drift * 0.3 : weekend ? 0.4 + drift * 0.1 : 1.2;
+      final rainChance = unsettled ? 72 : weekend ? 22 : 44;
+      final wind = weekend ? 19 + drift : 26 + drift;
+      final weatherCode = unsettled
+          ? 61
+          : bright
+              ? 1
+              : weekend
+                  ? 3
+                  : 45;
+      return DailyForecast(
+        date: date,
+        weatherCode: weatherCode,
+        maxTempC: maxTemp,
+        minTempC: minTemp,
+        precipitationMm: rain,
+        precipitationProbabilityMax: rainChance,
+        maxWindKph: wind,
+        uvIndexMax: weekend ? 4.2 : 2.4,
+        sunrise: DateTime(date.year, date.month, date.day, 6, 28),
+        sunset: DateTime(date.year, date.month, date.day, 18, 9),
+      );
+    }, growable: false);
 
     return WeatherReport(
       location: location,
@@ -558,18 +587,8 @@ class DemoWeatherRepository implements WeatherRepository {
       current: current,
       minutely: minutely,
       hourly: hourly,
-      today: DailyForecast(
-        date: now,
-        weatherCode: 3,
-        maxTempC: 15,
-        minTempC: 7,
-        precipitationMm: 1.3,
-        precipitationProbabilityMax: 62,
-        maxWindKph: 29,
-        uvIndexMax: 4,
-        sunrise: sunrise,
-        sunset: sunset,
-      ),
+      today: daily.first,
+      daily: daily,
       usingFallback: true,
       sourceLabel: 'Sample outlook',
       officialWarnings: drift >= 3

@@ -8,6 +8,20 @@ enum RiskLevel { calm, headsUp, high }
 
 enum AlertSource { forecast, official }
 
+enum ExplanationMode { simple, detailed }
+
+extension ExplanationModeX on ExplanationMode {
+  String get label => switch (this) {
+        ExplanationMode.simple => 'Simple',
+        ExplanationMode.detailed => 'Detailed',
+      };
+
+  String get description => switch (this) {
+        ExplanationMode.simple => 'Plain English and practical guidance.',
+        ExplanationMode.detailed => 'Shows supporting weather metrics and more detail.',
+      };
+}
+
 class WeatherLocation {
   const WeatherLocation({
     required this.name,
@@ -329,6 +343,7 @@ class WeatherReport {
     required this.minutely,
     required this.hourly,
     required this.today,
+    required this.daily,
     required this.usingFallback,
     required this.sourceLabel,
     this.officialWarnings = const <OfficialWarning>[],
@@ -341,6 +356,7 @@ class WeatherReport {
   final List<MinuteForecast> minutely;
   final List<HourlyForecast> hourly;
   final DailyForecast today;
+  final List<DailyForecast> daily;
   final bool usingFallback;
   final String sourceLabel;
   final List<OfficialWarning> officialWarnings;
@@ -513,6 +529,48 @@ class HomeSummaryCard {
   final AdviceTone tone;
 }
 
+class WeekendDayPlan {
+  const WeekendDayPlan({
+    required this.label,
+    required this.date,
+    required this.summary,
+    required this.headline,
+    required this.maxTempC,
+    required this.minTempC,
+    required this.precipitationMm,
+    required this.precipitationProbabilityMax,
+    required this.maxWindKph,
+    required this.icon,
+    required this.tone,
+  });
+
+  final String label;
+  final DateTime date;
+  final String summary;
+  final String headline;
+  final double maxTempC;
+  final double minTempC;
+  final double precipitationMm;
+  final int precipitationProbabilityMax;
+  final double maxWindKph;
+  final IconData icon;
+  final AdviceTone tone;
+}
+
+class WeekendPlanner {
+  const WeekendPlanner({
+    required this.title,
+    required this.summary,
+    required this.days,
+    required this.tone,
+  });
+
+  final String title;
+  final String summary;
+  final List<WeekendDayPlan> days;
+  final AdviceTone tone;
+}
+
 class WeatherGuidance {
   const WeatherGuidance({
     required this.headline,
@@ -525,6 +583,7 @@ class WeatherGuidance {
     required this.simpleSummary,
     required this.highlightHours,
     required this.homeCards,
+    required this.weekendPlanner,
   });
 
   final GuidanceHeadline headline;
@@ -537,4 +596,5 @@ class WeatherGuidance {
   final String simpleSummary;
   final List<HourlyForecast> highlightHours;
   final List<HomeSummaryCard> homeCards;
+  final WeekendPlanner? weekendPlanner;
 }

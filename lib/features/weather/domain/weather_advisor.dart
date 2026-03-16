@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/utils/formatters.dart';
 import 'weather_describer.dart';
+import 'weather_interpreter.dart';
 import 'weather_models.dart';
 
 class WeatherAdvisor {
@@ -12,19 +13,51 @@ class WeatherAdvisor {
   WeatherGuidance build(
     WeatherReport report, {
     required List<SavedCommuteWindow> commuteWindows,
+    ExplanationMode explanationMode = ExplanationMode.simple,
   }) {
-    final nextHour = _buildNextHourInsight(report);
-    final dryWindow = _findBestDryWindow(report.hourly);
-    final commute = _buildCommute(report.hourly, report.fetchedAt, commuteWindows);
-    final risks = _buildRisks(report);
-    final wearTips = _buildWearTips(report, nextHour);
-    final activities = _buildActivities(report, dryWindow, nextHour);
-    final headline = _buildHeadline(report, nextHour, dryWindow, risks);
-    final simpleSummary = _buildSimpleSummary(
+    final interpreter = WeatherInterpreter(explanationMode);
+
+    final baseNextHour = _buildNextHourInsight(report);
+    final baseDryWindow = _findBestDryWindow(report.hourly);
+    final baseCommute = _buildCommute(report.hourly, report.fetchedAt, commuteWindows);
+    final baseRisks = _buildRisks(report);
+    final baseWearTips = _buildWearTips(report, baseNextHour);
+    final baseActivities = _buildActivities(report, baseDryWindow, baseNextHour);
+    final baseHeadline = _buildHeadline(report, baseNextHour, baseDryWindow, baseRisks);
+    final baseSimpleSummary = _buildSimpleSummary(
       report,
-      nextHour,
+      baseNextHour,
+      baseDryWindow,
+      baseWearTips,
+    );
+
+    final nextHour = _interpretNextHour(baseNextHour, report, interpreter);
+    final dryWindow = _interpretDryWindow(baseDryWindow, report, interpreter);
+    final commute = _interpretCommute(baseCommute, report, interpreter);
+    final risks = _interpretRisks(baseRisks, report, interpreter);
+    final wearTips = _interpretWearTips(baseWearTips, report, interpreter);
+    final activities = _interpretActivities(
+      baseActivities,
+      report,
+      baseDryWindow,
+      baseNextHour,
+      interpreter,
+    );
+    final headline = _interpretHeadline(
+      baseHeadline,
+      report,
       dryWindow,
-      wearTips,
+      risks,
+      interpreter,
+    );
+    final weekendPlanner = _interpretWeekendPlanner(
+      _buildWeekendPlanner(report.daily, report.fetchedAt),
+      interpreter,
+    );
+    final simpleSummary = _interpretSummary(
+      baseSimpleSummary,
+      report,
+      interpreter,
     );
     final homeCards = _buildHomeCards(
       report,
@@ -32,6 +65,7 @@ class WeatherAdvisor {
       dryWindow,
       commute,
       simpleSummary,
+      interpreter,
     );
 
     return WeatherGuidance(
@@ -45,6 +79,7 @@ class WeatherAdvisor {
       simpleSummary: simpleSummary,
       highlightHours: report.hourly.take(6).toList(growable: false),
       homeCards: homeCards,
+      weekendPlanner: weekendPlanner,
     );
   }
 
@@ -559,12 +594,446 @@ class WeatherAdvisor {
     return risks;
   }
 
+  NextHourInsight _interpretNextHour(
+    NextHourInsight insight,
+    WeatherReport report,
+    WeatherInterpreter interpreter,
+  ) {
+    if (!interpreter.isDetailed) {
+      return insight;
+    }
+
+    final nextTwoHours = report.hourly.take(2);
+    final maxChance = nextTwoHours.fold<int>(
+      report.today.precipitationProbabilityMax,
+      (value, slot) => max(value, slot.precipitationProbability),
+    );
+    final details = <String>[
+      if (insight.minutesUntilRain != null)
+        'Rain may arrive in about ${insight.minutesUntilRain} minutes.',
+      if (insight.maxPrecipitationMm > 0.04)
+        interpreter.rainAmount(insight.maxPrecipitationMm, prefix: 'Peak burst'),
+      interpreter.rainChance(maxChance),
+      interpreter.wind(report.current.windSpeedKph),
+      interpreter.visibility(report.current.visibilityMeters),
+    ];
+
+    return NextHourInsight(
+      title: insight.title,
+      detail: interpreter.explain(insight.detail, details: details),
+      departureAdvice: insight.departureAdvice,
+      tone: insight.tone,
+      maxPrecipitationMm: insight.maxPrecipitationMm,
+      minutesUntilRain: insight.minutesUntilRain,
+    );
+  }
+
+  DryWindowInsight _interpretDryWindow(
+    DryWindowInsight insight,
+    WeatherReport report,
+    WeatherInterpreter interpreter,
+  ) {
+    if (!interpreter.isDetailed) {
+      return insight;
+    }
+
+    final drySlots = insight.start != null && insight.end != null
+        ? _slotsInWindow(report.hourly, insight.start!, insight.end!)
+        : const <HourlyForecast>[];
+    final maxChance = drySlots.fold<int>(
+      report.today.precipitationProbabilityMax,
+      (value, slot) => max(value, slot.precipitationProbability),
+    );
+    final maxWind = drySlots.fold<double>(
+      report.today.maxWindKph,
+      (value, slot) => max(value, slot.windSpeedKph),
+    );
+    final details = <String>[
+      if (insight.start != null && insight.end != null)
+        interpreter.dryWindow(insight.start!, insight.end!, prefix: 'Best block'),
+      'Confidence is ${insight.confidenceLabel.toLowerCase()}.',
+      interpreter.rainChance(maxChance),
+      interpreter.wind(maxWind),
+    ];
+
+    return DryWindowInsight(
+      headline: insight.headline,
+      isAvailable: insight.isAvailable,
+      start: insight.start,
+      end: insight.end,
+      duration: insight.duration,
+      note: interpreter.explain(insight.note, details: details),
+      confidenceLabel: insight.confidenceLabel,
+      tone: insight.tone,
+    );
+  }
+
+  CommuteOverview _interpretCommute(
+    CommuteOverview commute,
+    WeatherReport report,
+    WeatherInterpreter interpreter,
+  ) {
+    if (!interpreter.isDetailed) {
+      return commute;
+    }
+
+    final windows = commute.windows
+        .map((leg) {
+          final slots = _slotsInWindow(report.hourly, leg.start, leg.end);
+          final maxChance = slots.fold<int>(0, (value, slot) => max(value, slot.precipitationProbability));
+          final maxWind = slots.fold<double>(0, (value, slot) => max(value, slot.windSpeedKph));
+          final minVisibility = slots.fold<double>(
+            report.current.visibilityMeters,
+            (value, slot) => min(value, slot.visibilityMeters),
+          );
+
+          return CommuteLeg(
+            id: leg.id,
+            label: leg.label,
+            start: leg.start,
+            end: leg.end,
+            tone: leg.tone,
+            detail: interpreter.explain(
+              leg.detail,
+              details: <String>[
+                if (slots.isNotEmpty) interpreter.rainChance(maxChance),
+                if (slots.isNotEmpty) interpreter.wind(maxWind),
+                if (minVisibility < 10000) interpreter.visibility(minVisibility),
+              ],
+            ),
+            summary: leg.summary,
+            score: leg.score,
+          );
+        })
+        .toList(growable: false);
+
+    final best = windows.reduce((a, b) => a.score >= b.score ? a : b);
+    return CommuteOverview(
+      windows: windows,
+      summary: interpreter.explain(
+        commute.summary,
+        details: <String>[
+          interpreter.count('saved routine', windows.length),
+          'Best window is ${best.label} at ${best.score}/100.',
+        ],
+      ),
+    );
+  }
+
+  GuidanceHeadline _interpretHeadline(
+    GuidanceHeadline headline,
+    WeatherReport report,
+    DryWindowInsight dryWindow,
+    List<RiskNote> risks,
+    WeatherInterpreter interpreter,
+  ) {
+    if (!interpreter.isDetailed) {
+      return headline;
+    }
+
+    final details = <String>[
+      interpreter.temperatureRange(report.today.minTempC, report.today.maxTempC),
+      interpreter.gust(max(report.today.maxWindKph, report.current.windGustKph)),
+      if (dryWindow.isAvailable && dryWindow.start != null && dryWindow.end != null)
+        interpreter.dryWindow(dryWindow.start!, dryWindow.end!),
+      if (risks.isNotEmpty && risks.first.level != RiskLevel.calm)
+        'Top weather flag: ${risks.first.title}.',
+    ];
+
+    return GuidanceHeadline(
+      title: headline.title,
+      detail: interpreter.explain(headline.detail, details: details),
+      tone: headline.tone,
+      callToAction: headline.callToAction,
+    );
+  }
+
+  List<WearTip> _interpretWearTips(
+    List<WearTip> wearTips,
+    WeatherReport report,
+    WeatherInterpreter interpreter,
+  ) {
+    if (!interpreter.isDetailed) {
+      return wearTips;
+    }
+
+    return wearTips
+        .map((tip) {
+          final details = <String>[
+            if (tip.title.toLowerCase().contains('umbrella') ||
+                tip.title.toLowerCase().contains('waterproof'))
+              interpreter.rainChance(report.today.precipitationProbabilityMax),
+            if (tip.title.toLowerCase().contains('umbrella') ||
+                tip.title.toLowerCase().contains('waterproof'))
+              interpreter.rainAmount(report.today.precipitationMm),
+            if (tip.title.toLowerCase().contains('windy'))
+              interpreter.gust(max(report.today.maxWindKph, report.current.windGustKph)),
+            if (tip.title.toLowerCase().contains('cold') ||
+                tip.title.toLowerCase().contains('wrap') ||
+                tip.title.toLowerCase().contains('layer'))
+              interpreter.apparent(report.current.apparentTemperatureC),
+            if (tip.title.toLowerCase().contains('cold') ||
+                tip.title.toLowerCase().contains('wrap') ||
+                tip.title.toLowerCase().contains('layer'))
+              interpreter.temperatureRange(report.today.minTempC, report.today.maxTempC),
+            if (tip.title.toLowerCase().contains('sunglasses'))
+              'UV peaks around ${report.today.uvIndexMax.toStringAsFixed(1)}.',
+          ];
+
+          return WearTip(
+            title: tip.title,
+            detail: interpreter.explain(tip.detail, details: details),
+            icon: tip.icon,
+          );
+        })
+        .toList(growable: false);
+  }
+
+  List<ActivityRecommendation> _interpretActivities(
+    List<ActivityRecommendation> activities,
+    WeatherReport report,
+    DryWindowInsight dryWindow,
+    NextHourInsight nextHour,
+    WeatherInterpreter interpreter,
+  ) {
+    if (!interpreter.isDetailed) {
+      return activities;
+    }
+
+    final context = _ActivityContext.from(report, dryWindow, nextHour);
+    return activities
+        .map((activity) {
+          final details = <String>[
+            interpreter.score(activity.name, activity.score),
+            interpreter.rainChance(context.rainChance),
+            interpreter.wind(context.windKph),
+            if (activity.name == 'Cycling' || activity.name == 'Walking')
+              interpreter.visibility(context.visibilityMeters),
+            if (activity.name == 'Picnic' ||
+                activity.name == 'Laundry drying' ||
+                activity.name == 'Football' ||
+                activity.name == 'Outdoor coffee')
+              'Best dry block lasts about ${context.dryWindowMinutes} minutes.',
+          ];
+
+          return ActivityRecommendation(
+            name: activity.name,
+            score: activity.score,
+            detail: interpreter.explain(activity.detail, details: details),
+            suitability: activity.suitability,
+            icon: activity.icon,
+          );
+        })
+        .toList(growable: false);
+  }
+
+  List<RiskNote> _interpretRisks(
+    List<RiskNote> risks,
+    WeatherReport report,
+    WeatherInterpreter interpreter,
+  ) {
+    if (!interpreter.isDetailed) {
+      return risks;
+    }
+
+    final maxWind = max(report.today.maxWindKph, report.current.windGustKph);
+    final maxRain = report.hourly.fold<double>(
+      report.current.precipitationMm,
+      (value, slot) => max(value, slot.precipitationMm),
+    );
+    final minVisibility = report.hourly.fold<double>(
+      report.current.visibilityMeters,
+      (value, slot) => min(value, slot.visibilityMeters),
+    );
+
+    return risks
+        .map((risk) {
+          final lowerTitle = risk.title.toLowerCase();
+          final details = <String>[
+            if (risk.source == AlertSource.official) 'Source: ${risk.sourceLabel}.',
+            if (lowerTitle.contains('wind') || lowerTitle.contains('breezy') || lowerTitle.contains('blustery'))
+              interpreter.gust(maxWind),
+            if (lowerTitle.contains('rain') || lowerTitle.contains('storm'))
+              interpreter.rainAmount(maxRain, prefix: 'Peak hourly rain'),
+            if (lowerTitle.contains('visibility') || lowerTitle.contains('fog') || lowerTitle.contains('murk'))
+              interpreter.visibility(minVisibility),
+            if (lowerTitle.contains('heat'))
+              interpreter.temperatureRange(report.today.minTempC, report.today.maxTempC),
+            if (lowerTitle.contains('frost') || lowerTitle.contains('snow') || lowerTitle.contains('wintry'))
+              'Overnight lows could dip to ${formatTemperature(report.today.minTempC)}.',
+            if (risk.link != null) 'More detail is available from the linked warning.',
+          ];
+
+          return RiskNote(
+            title: risk.title,
+            detail: interpreter.explain(risk.detail, details: details),
+            level: risk.level,
+            icon: risk.icon,
+            source: risk.source,
+            sourceLabel: risk.sourceLabel,
+            link: risk.link,
+          );
+        })
+        .toList(growable: false);
+  }
+
+  WeekendPlanner? _buildWeekendPlanner(
+    List<DailyForecast> daily,
+    DateTime now,
+  ) {
+    final upcomingWeekend = daily
+        .where((day) =>
+            !day.date.isBefore(DateTime(now.year, now.month, now.day)) &&
+            (day.date.weekday == DateTime.saturday || day.date.weekday == DateTime.sunday))
+        .take(2)
+        .toList(growable: false);
+
+    if (upcomingWeekend.isEmpty) {
+      return null;
+    }
+
+    final weekendDays = upcomingWeekend
+        .map(_buildWeekendDayPlan)
+        .toList(growable: false);
+    final sorted = [...upcomingWeekend]..sort((a, b) => _dayUsefulnessScore(b).compareTo(_dayUsefulnessScore(a)));
+    final best = sorted.first;
+    final worst = sorted.last;
+    final scoreGap = _dayUsefulnessScore(best) - _dayUsefulnessScore(worst);
+
+    final title = switch (weekendDays.length) {
+      1 => '${_weekendLabel(weekendDays.first.date)} is worth planning around',
+      _ when scoreGap >= 2.2 => '${_weekendLabel(best.date)} is your better outdoor day',
+      _ when weekendDays.every((day) => day.tone == AdviceTone.go) => 'The weekend looks open for plans',
+      _ when weekendDays.every((day) => day.tone == AdviceTone.wait) => 'Weekend plans look weather-led',
+      _ => 'A mixed weekend picture',
+    };
+
+    final summary = switch (weekendDays.length) {
+      1 => weekendDays.first.summary,
+      _ when scoreGap >= 2.2 =>
+        '${_weekendLabel(best.date)} looks easier for outdoor plans than ${_weekendLabel(worst.date).toLowerCase()}.',
+      _ when weekendDays.every((day) => day.tone == AdviceTone.go) =>
+        'Both days look usable for walks, errands, and time outside.',
+      _ when weekendDays.every((day) => day.tone == AdviceTone.wait) =>
+        'Rain or wind could interrupt plans on both days, so keep them flexible.',
+      _ => 'One day looks more practical than the other, so choose your longer outdoor plans carefully.',
+    };
+
+    final tone = weekendDays.any((day) => day.tone == AdviceTone.go)
+        ? weekendDays.any((day) => day.tone == AdviceTone.wait)
+            ? AdviceTone.watch
+            : AdviceTone.go
+        : AdviceTone.wait;
+
+    return WeekendPlanner(
+      title: title,
+      summary: summary,
+      days: weekendDays,
+      tone: tone,
+    );
+  }
+
+  WeekendDayPlan _buildWeekendDayPlan(DailyForecast day) {
+    final descriptor = describeWeatherCode(day.weatherCode, isDay: true);
+    final label = _weekendLabel(day.date);
+    final mostlyWet = day.precipitationProbabilityMax >= 70 || day.precipitationMm >= 4;
+    final mixed = day.precipitationProbabilityMax >= 40 || day.precipitationMm >= 1.5;
+    final windy = day.maxWindKph >= 30;
+    final mild = day.maxTempC >= 14 && day.maxTempC <= 22;
+
+    final tone = mostlyWet || windy && day.maxWindKph >= 36
+        ? AdviceTone.wait
+        : mixed || windy
+            ? AdviceTone.watch
+            : AdviceTone.go;
+
+    final headline = tone == AdviceTone.go
+        ? '$label looks like the easier pick'
+        : tone == AdviceTone.watch
+            ? '$label looks usable with some care'
+            : '$label could be awkward outside';
+
+    final summary = mostlyWet
+        ? 'Wet spells look likely for much of the day.'
+        : mixed && windy
+            ? 'Changeable weather with some wind could interrupt longer outdoor plans.'
+            : mixed
+                ? 'There should be some usable gaps, but not an all-day banker.'
+                : windy
+                    ? 'Mostly dry, but breezier than ideal in exposed spots.'
+                    : mild
+                        ? 'Mostly dry and mild, with good scope for time outside.'
+                        : '${descriptor.summary} with fairly manageable conditions.';
+
+    return WeekendDayPlan(
+      label: label,
+      date: day.date,
+      summary: summary,
+      headline: headline,
+      maxTempC: day.maxTempC,
+      minTempC: day.minTempC,
+      precipitationMm: day.precipitationMm,
+      precipitationProbabilityMax: day.precipitationProbabilityMax,
+      maxWindKph: day.maxWindKph,
+      icon: descriptor.icon,
+      tone: tone,
+    );
+  }
+
+  WeekendPlanner? _interpretWeekendPlanner(
+    WeekendPlanner? planner,
+    WeatherInterpreter interpreter,
+  ) {
+    if (planner == null || !interpreter.isDetailed) {
+      return planner;
+    }
+
+    final days = planner.days
+        .map((day) {
+          return WeekendDayPlan(
+            label: day.label,
+            date: day.date,
+            summary: interpreter.explain(
+              day.summary,
+              details: <String>[
+                'Daytime high near ${formatTemperature(day.maxTempC)}.',
+                'Low near ${formatTemperature(day.minTempC)}.',
+                interpreter.rainChance(day.precipitationProbabilityMax),
+                if (day.precipitationMm > 0.04)
+                  interpreter.rainAmount(day.precipitationMm, prefix: 'Daily rainfall'),
+                interpreter.wind(day.maxWindKph),
+              ],
+            ),
+            headline: day.headline,
+            maxTempC: day.maxTempC,
+            minTempC: day.minTempC,
+            precipitationMm: day.precipitationMm,
+            precipitationProbabilityMax: day.precipitationProbabilityMax,
+            maxWindKph: day.maxWindKph,
+            icon: day.icon,
+            tone: day.tone,
+          );
+        })
+        .toList(growable: false);
+
+    return WeekendPlanner(
+      title: planner.title,
+      summary: interpreter.explain(
+        planner.summary,
+        details: days.map((day) => '${day.label}: ${day.summary}'),
+      ),
+      days: days,
+      tone: planner.tone,
+    );
+  }
+
   List<HomeSummaryCard> _buildHomeCards(
     WeatherReport report,
     NextHourInsight nextHour,
     DryWindowInsight dryWindow,
     CommuteOverview commute,
     String simpleSummary,
+    WeatherInterpreter interpreter,
   ) {
     final currentDescriptor = describeWeatherCode(
       report.current.weatherCode,
@@ -581,14 +1050,20 @@ class WeatherAdvisor {
       HomeSummaryCard(
         title: 'Current weather',
         value: '${formatTemperature(report.current.temperatureC)} ${currentDescriptor.label}',
-        detail: 'Feels like ${formatTemperature(report.current.apparentTemperatureC)}',
+        detail: interpreter.explain(
+          'Feels like ${formatTemperature(report.current.apparentTemperatureC)}',
+          details: <String>[
+            interpreter.wind(report.current.windSpeedKph),
+            interpreter.visibility(report.current.visibilityMeters),
+          ],
+        ),
         icon: currentDescriptor.icon,
         tone: AdviceTone.go,
       ),
       HomeSummaryCard(
         title: 'Next rain',
         value: nextHour.title,
-        detail: nextHour.departureAdvice,
+        detail: interpreter.isDetailed ? nextHour.detail : nextHour.departureAdvice,
         icon: Icons.umbrella_rounded,
         tone: nextHour.tone,
       ),
@@ -608,14 +1083,33 @@ class WeatherAdvisor {
       ),
       HomeSummaryCard(
         title: 'Daily advice',
-        value: simpleSummary,
-        detail: report.officialWarnings.isNotEmpty
-            ? '${report.officialWarnings.length} official warning${report.officialWarnings.length == 1 ? '' : 's'} available'
-            : 'No official warnings matched your location',
+        value: _leadingSentence(simpleSummary),
+        detail: _supportingSentences(simpleSummary).isNotEmpty
+            ? _supportingSentences(simpleSummary)
+            : report.officialWarnings.isNotEmpty
+                ? '${report.officialWarnings.length} official warning${report.officialWarnings.length == 1 ? '' : 's'} available'
+                : 'No official warnings matched your location',
         icon: Icons.chat_bubble_outline_rounded,
         tone: report.officialWarnings.isNotEmpty ? AdviceTone.watch : AdviceTone.go,
       ),
     ];
+  }
+
+  String _interpretSummary(
+    String summary,
+    WeatherReport report,
+    WeatherInterpreter interpreter,
+  ) {
+    return interpreter.explain(
+      summary,
+      details: <String>[
+        interpreter.temperatureRange(report.today.minTempC, report.today.maxTempC),
+        interpreter.gust(max(report.today.maxWindKph, report.current.windGustKph)),
+        interpreter.rainChance(report.today.precipitationProbabilityMax),
+        if (report.officialWarnings.isNotEmpty)
+          interpreter.count('official warning', report.officialWarnings.length),
+      ],
+    );
   }
 
   String _buildSimpleSummary(
@@ -719,6 +1213,39 @@ class WeatherAdvisor {
     return 'day';
   }
 
+  double _dayUsefulnessScore(DailyForecast day) {
+    var score = 8.0;
+    score -= day.precipitationProbabilityMax >= 80
+        ? 3.6
+        : day.precipitationProbabilityMax >= 55
+            ? 2.1
+            : day.precipitationProbabilityMax >= 35
+                ? 1.0
+                : 0;
+    score -= day.precipitationMm >= 6
+        ? 2.8
+        : day.precipitationMm >= 2
+            ? 1.5
+            : day.precipitationMm >= 0.6
+                ? 0.8
+                : 0;
+    score -= day.maxWindKph >= 38
+        ? 2.2
+        : day.maxWindKph >= 28
+            ? 1.0
+            : 0;
+    score += day.maxTempC >= 13 && day.maxTempC <= 22 ? 0.8 : 0;
+    return score;
+  }
+
+  String _weekendLabel(DateTime date) {
+    return switch (date.weekday) {
+      DateTime.saturday => 'Saturday',
+      DateTime.sunday => 'Sunday',
+      _ => formatDateHeader(date),
+    };
+  }
+
   double _slotPenalty(HourlyForecast slot) {
     return slot.precipitationProbability +
         slot.precipitationMm * 40 +
@@ -734,6 +1261,35 @@ class WeatherAdvisor {
   String _commuteHeadline(CommuteOverview commute) {
     final best = commute.windows.reduce((a, b) => a.score >= b.score ? a : b);
     return '${best.label}: ${best.score}/100';
+  }
+
+  List<HourlyForecast> _slotsInWindow(
+    List<HourlyForecast> hourly,
+    DateTime start,
+    DateTime end,
+  ) {
+    return hourly
+        .where((slot) => !slot.time.isBefore(start) && slot.time.isBefore(end))
+        .toList(growable: false);
+  }
+
+  String _leadingSentence(String text) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) {
+      return text;
+    }
+    final punctuation = trimmed.indexOf(RegExp(r'[.!?]'));
+    if (punctuation == -1 || punctuation == trimmed.length - 1) {
+      return trimmed;
+    }
+    return trimmed.substring(0, punctuation + 1);
+  }
+
+  String _supportingSentences(String text) {
+    final trimmed = text.trim();
+    final leading = _leadingSentence(trimmed);
+    final remainder = trimmed.substring(leading.length).trimLeft();
+    return remainder;
   }
 
   RiskLevel _riskLevelFromSeverity(String severityLabel) {
