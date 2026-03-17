@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/app_providers.dart';
+
+part 'display_settings_controller.freezed.dart';
 
 const _themeModeKey = 'dry_slots.display.theme_mode.v2';
 const _largeTextKey = 'dry_slots.display.large_text.v2';
@@ -11,23 +14,16 @@ final displaySettingsControllerProvider =
       DisplaySettingsController.new,
     );
 
-class DisplaySettingsState {
-  const DisplaySettingsState({
-    required this.themeMode,
-    required this.largeText,
-  });
+@freezed
+abstract class DisplaySettingsState with _$DisplaySettingsState {
+  const DisplaySettingsState._();
 
-  final ThemeMode themeMode;
-  final bool largeText;
+  const factory DisplaySettingsState({
+    required ThemeMode themeMode,
+    required bool largeText,
+  }) = _DisplaySettingsState;
 
   double get textScaleFactor => largeText ? 1.16 : 1.0;
-
-  DisplaySettingsState copyWith({ThemeMode? themeMode, bool? largeText}) {
-    return DisplaySettingsState(
-      themeMode: themeMode ?? this.themeMode,
-      largeText: largeText ?? this.largeText,
-    );
-  }
 }
 
 class DisplaySettingsController extends Notifier<DisplaySettingsState> {

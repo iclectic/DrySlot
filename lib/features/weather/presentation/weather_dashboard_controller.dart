@@ -1,3 +1,4 @@
+import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/app_providers.dart';
@@ -7,8 +8,9 @@ import '../domain/weather_advisor.dart';
 import '../domain/weather_models.dart';
 import '../domain/weather_repository.dart';
 
+part 'weather_dashboard_controller.freezed.dart';
+
 const _explanationModeKey = 'dry_slots.explanation_mode.v1';
-const _unset = Object();
 
 final weatherAdvisorProvider = Provider<WeatherAdvisor>((ref) {
   return const WeatherAdvisor();
@@ -19,72 +21,25 @@ final weatherDashboardControllerProvider =
       WeatherDashboardController.new,
     );
 
-class WeatherDashboardState {
-  const WeatherDashboardState({
-    required this.selectedLocation,
-    required this.commuteWindows,
-    required this.explanationMode,
-    required this.comparisonLocation,
-    required this.report,
-    required this.guidance,
-    required this.comparisonReport,
-    required this.comparisonGuidance,
-    required this.errorMessage,
-    required this.isLoading,
-    required this.isRefreshing,
-  });
+@freezed
+abstract class WeatherDashboardState with _$WeatherDashboardState {
+  const WeatherDashboardState._();
 
-  final WeatherLocation selectedLocation;
-  final List<SavedCommuteWindow> commuteWindows;
-  final ExplanationMode explanationMode;
-  final WeatherLocation? comparisonLocation;
-  final WeatherReport? report;
-  final WeatherGuidance? guidance;
-  final WeatherReport? comparisonReport;
-  final WeatherGuidance? comparisonGuidance;
-  final String? errorMessage;
-  final bool isLoading;
-  final bool isRefreshing;
+  const factory WeatherDashboardState({
+    required WeatherLocation selectedLocation,
+    required List<SavedCommuteWindow> commuteWindows,
+    required ExplanationMode explanationMode,
+    required WeatherLocation? comparisonLocation,
+    required WeatherReport? report,
+    required WeatherGuidance? guidance,
+    required WeatherReport? comparisonReport,
+    required WeatherGuidance? comparisonGuidance,
+    required String? errorMessage,
+    required bool isLoading,
+    required bool isRefreshing,
+  }) = _WeatherDashboardState;
 
   bool get hasData => report != null && guidance != null;
-
-  WeatherDashboardState copyWith({
-    WeatherLocation? selectedLocation,
-    List<SavedCommuteWindow>? commuteWindows,
-    ExplanationMode? explanationMode,
-    Object? comparisonLocation = _unset,
-    Object? report = _unset,
-    Object? guidance = _unset,
-    Object? comparisonReport = _unset,
-    Object? comparisonGuidance = _unset,
-    Object? errorMessage = _unset,
-    bool? isLoading,
-    bool? isRefreshing,
-  }) {
-    return WeatherDashboardState(
-      selectedLocation: selectedLocation ?? this.selectedLocation,
-      commuteWindows: commuteWindows ?? this.commuteWindows,
-      explanationMode: explanationMode ?? this.explanationMode,
-      comparisonLocation: comparisonLocation == _unset
-          ? this.comparisonLocation
-          : comparisonLocation as WeatherLocation?,
-      report: report == _unset ? this.report : report as WeatherReport?,
-      guidance: guidance == _unset
-          ? this.guidance
-          : guidance as WeatherGuidance?,
-      comparisonReport: comparisonReport == _unset
-          ? this.comparisonReport
-          : comparisonReport as WeatherReport?,
-      comparisonGuidance: comparisonGuidance == _unset
-          ? this.comparisonGuidance
-          : comparisonGuidance as WeatherGuidance?,
-      errorMessage: errorMessage == _unset
-          ? this.errorMessage
-          : errorMessage as String?,
-      isLoading: isLoading ?? this.isLoading,
-      isRefreshing: isRefreshing ?? this.isRefreshing,
-    );
-  }
 }
 
 class WeatherDashboardController extends Notifier<WeatherDashboardState> {
