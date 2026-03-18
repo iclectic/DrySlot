@@ -12,19 +12,36 @@ class DrySlotsApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(displaySettingsControllerProvider);
     final router = ref.watch(appRouterProvider);
+    final accessibility =
+        WidgetsBinding.instance.platformDispatcher.accessibilityFeatures;
+    final highContrast = settings.highContrast || accessibility.highContrast;
+    final reduceMotion =
+        accessibility.disableAnimations || accessibility.accessibleNavigation;
 
     return MaterialApp.router(
       title: 'Dry Slots',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.buildLight(),
-      darkTheme: AppTheme.buildDark(),
+      theme: AppTheme.buildLight(
+        highContrast: highContrast,
+        reduceMotion: reduceMotion,
+      ),
+      darkTheme: AppTheme.buildDark(
+        highContrast: highContrast,
+        reduceMotion: reduceMotion,
+      ),
       themeMode: settings.themeMode,
+      themeAnimationDuration: reduceMotion
+          ? Duration.zero
+          : kThemeAnimationDuration,
       routerConfig: router,
       builder: (context, child) {
         final mediaQuery = MediaQuery.of(context);
+        final combinedTextScale =
+            mediaQuery.textScaler.scale(1) * settings.textScaleFactor;
         return MediaQuery(
           data: mediaQuery.copyWith(
-            textScaler: TextScaler.linear(settings.textScaleFactor),
+            textScaler: TextScaler.linear(combinedTextScale),
+            highContrast: highContrast,
           ),
           child: child ?? const SizedBox.shrink(),
         );

@@ -14,7 +14,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$DisplaySettingsState {
 
- ThemeMode get themeMode; bool get largeText;
+ ThemeMode get themeMode; bool get largeText; bool get highContrast;
 /// Create a copy of DisplaySettingsState
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -25,16 +25,16 @@ $DisplaySettingsStateCopyWith<DisplaySettingsState> get copyWith => _$DisplaySet
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is DisplaySettingsState&&(identical(other.themeMode, themeMode) || other.themeMode == themeMode)&&(identical(other.largeText, largeText) || other.largeText == largeText));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is DisplaySettingsState&&(identical(other.themeMode, themeMode) || other.themeMode == themeMode)&&(identical(other.largeText, largeText) || other.largeText == largeText)&&(identical(other.highContrast, highContrast) || other.highContrast == highContrast));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,themeMode,largeText);
+int get hashCode => Object.hash(runtimeType,themeMode,largeText,highContrast);
 
 @override
 String toString() {
-  return 'DisplaySettingsState(themeMode: $themeMode, largeText: $largeText)';
+  return 'DisplaySettingsState(themeMode: $themeMode, largeText: $largeText, highContrast: $highContrast)';
 }
 
 
@@ -45,7 +45,7 @@ abstract mixin class $DisplaySettingsStateCopyWith<$Res>  {
   factory $DisplaySettingsStateCopyWith(DisplaySettingsState value, $Res Function(DisplaySettingsState) _then) = _$DisplaySettingsStateCopyWithImpl;
 @useResult
 $Res call({
- ThemeMode themeMode, bool largeText
+ ThemeMode themeMode, bool largeText, bool highContrast
 });
 
 
@@ -62,10 +62,11 @@ class _$DisplaySettingsStateCopyWithImpl<$Res>
 
 /// Create a copy of DisplaySettingsState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? themeMode = null,Object? largeText = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? themeMode = null,Object? largeText = null,Object? highContrast = null,}) {
   return _then(_self.copyWith(
 themeMode: null == themeMode ? _self.themeMode : themeMode // ignore: cast_nullable_to_non_nullable
 as ThemeMode,largeText: null == largeText ? _self.largeText : largeText // ignore: cast_nullable_to_non_nullable
+as bool,highContrast: null == highContrast ? _self.highContrast : highContrast // ignore: cast_nullable_to_non_nullable
 as bool,
   ));
 }
@@ -151,10 +152,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( ThemeMode themeMode,  bool largeText)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( ThemeMode themeMode,  bool largeText,  bool highContrast)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _DisplaySettingsState() when $default != null:
-return $default(_that.themeMode,_that.largeText);case _:
+return $default(_that.themeMode,_that.largeText,_that.highContrast);case _:
   return orElse();
 
 }
@@ -172,10 +173,10 @@ return $default(_that.themeMode,_that.largeText);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( ThemeMode themeMode,  bool largeText)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( ThemeMode themeMode,  bool largeText,  bool highContrast)  $default,) {final _that = this;
 switch (_that) {
 case _DisplaySettingsState():
-return $default(_that.themeMode,_that.largeText);case _:
+return $default(_that.themeMode,_that.largeText,_that.highContrast);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -192,10 +193,10 @@ return $default(_that.themeMode,_that.largeText);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( ThemeMode themeMode,  bool largeText)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( ThemeMode themeMode,  bool largeText,  bool highContrast)?  $default,) {final _that = this;
 switch (_that) {
 case _DisplaySettingsState() when $default != null:
-return $default(_that.themeMode,_that.largeText);case _:
+return $default(_that.themeMode,_that.largeText,_that.highContrast);case _:
   return null;
 
 }
@@ -207,11 +208,12 @@ return $default(_that.themeMode,_that.largeText);case _:
 
 
 class _DisplaySettingsState extends DisplaySettingsState {
-  const _DisplaySettingsState({required this.themeMode, required this.largeText}): super._();
+  const _DisplaySettingsState({required this.themeMode, required this.largeText, required this.highContrast}): super._();
   
 
 @override final  ThemeMode themeMode;
 @override final  bool largeText;
+@override final  bool highContrast;
 
 /// Create a copy of DisplaySettingsState
 /// with the given fields replaced by the non-null parameter values.
@@ -223,16 +225,16 @@ _$DisplaySettingsStateCopyWith<_DisplaySettingsState> get copyWith => __$Display
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DisplaySettingsState&&(identical(other.themeMode, themeMode) || other.themeMode == themeMode)&&(identical(other.largeText, largeText) || other.largeText == largeText));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DisplaySettingsState&&(identical(other.themeMode, themeMode) || other.themeMode == themeMode)&&(identical(other.largeText, largeText) || other.largeText == largeText)&&(identical(other.highContrast, highContrast) || other.highContrast == highContrast));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,themeMode,largeText);
+int get hashCode => Object.hash(runtimeType,themeMode,largeText,highContrast);
 
 @override
 String toString() {
-  return 'DisplaySettingsState(themeMode: $themeMode, largeText: $largeText)';
+  return 'DisplaySettingsState(themeMode: $themeMode, largeText: $largeText, highContrast: $highContrast)';
 }
 
 
@@ -243,7 +245,7 @@ abstract mixin class _$DisplaySettingsStateCopyWith<$Res> implements $DisplaySet
   factory _$DisplaySettingsStateCopyWith(_DisplaySettingsState value, $Res Function(_DisplaySettingsState) _then) = __$DisplaySettingsStateCopyWithImpl;
 @override @useResult
 $Res call({
- ThemeMode themeMode, bool largeText
+ ThemeMode themeMode, bool largeText, bool highContrast
 });
 
 
@@ -260,10 +262,11 @@ class __$DisplaySettingsStateCopyWithImpl<$Res>
 
 /// Create a copy of DisplaySettingsState
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? themeMode = null,Object? largeText = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? themeMode = null,Object? largeText = null,Object? highContrast = null,}) {
   return _then(_DisplaySettingsState(
 themeMode: null == themeMode ? _self.themeMode : themeMode // ignore: cast_nullable_to_non_nullable
 as ThemeMode,largeText: null == largeText ? _self.largeText : largeText // ignore: cast_nullable_to_non_nullable
+as bool,highContrast: null == highContrast ? _self.highContrast : highContrast // ignore: cast_nullable_to_non_nullable
 as bool,
   ));
 }

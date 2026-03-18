@@ -4,6 +4,8 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/analytics/analytics_settings_controller.dart';
+import '../../../core/analytics/app_analytics.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/display_settings_controller.dart';
 import '../../../core/utils/formatters.dart';
@@ -23,6 +25,7 @@ class WeatherDashboardPage extends ConsumerStatefulWidget {
 
 class _WeatherDashboardPageState extends ConsumerState<WeatherDashboardPage> {
   bool _showMoreDetail = false;
+  String? _lastAnalyticsSnapshot;
 
   @override
   void initState() {
@@ -65,9 +68,25 @@ class _WeatherDashboardPageState extends ConsumerState<WeatherDashboardPage> {
     );
 
     if (result != null) {
+      final existingIds = state.commuteWindows
+          .map((window) => window.id)
+          .toSet();
+      final createdCount = result
+          .where((window) => !existingIds.contains(window.id))
+          .length;
       await ref
           .read(weatherDashboardControllerProvider.notifier)
           .saveCommuteWindows(result);
+      if (createdCount > 0) {
+        unawaited(
+          ref
+              .read(appAnalyticsProvider)
+              .trackRoutineCreated(
+                createdCount: createdCount,
+                totalCount: result.length,
+              ),
+        );
+      }
     }
   }
 
@@ -103,6 +122,51 @@ class _WeatherDashboardPageState extends ConsumerState<WeatherDashboardPage> {
     );
   }
 
+  Future<void> _openActivityDetails(ActivityRecommendation activity) async {
+    unawaited(
+      ref
+          .read(appAnalyticsProvider)
+          .trackActivityCardTapped(activity: activity),
+    );
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return ActivityDetailSheet(activity: activity);
+      },
+    );
+  }
+
+  void _trackDashboardInsights(WeatherDashboardState state) {
+    final report = state.report;
+    final guidance = state.guidance;
+    if (report == null || guidance == null) {
+      return;
+    }
+
+    final snapshot =
+        '${report.location.name}:${report.fetchedAt.toIso8601String()}:${guidance.dryWindow.headline}:${guidance.commute.windows.length}';
+    if (_lastAnalyticsSnapshot == snapshot) {
+      return;
+    }
+    _lastAnalyticsSnapshot = snapshot;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+
+      final analytics = ref.read(appAnalyticsProvider);
+      unawaited(analytics.trackBestDrySlotViewed(window: guidance.dryWindow));
+      unawaited(
+        analytics.trackCommuteChecked(
+          routineCount: guidance.commute.windows.length,
+        ),
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(weatherDashboardControllerProvider);
@@ -119,6 +183,7 @@ class _WeatherDashboardPageState extends ConsumerState<WeatherDashboardPage> {
 
     final report = state.report!;
     final guidance = state.guidance!;
+    _trackDashboardInsights(state);
     final priorityRisk = _shouldPinRisk(guidance);
     final detailCards = <Widget>[
       _HourlyStripCard(
@@ -126,7 +191,12 @@ class _WeatherDashboardPageState extends ConsumerState<WeatherDashboardPage> {
         explanationMode: state.explanationMode,
       ),
       const SizedBox(height: 16),
-      _ActivitiesCard(guidance: guidance),
+      _ActivitiesCard(
+        guidance: guidance,
+        onTap: (activity) {
+          unawaited(_openActivityDetails(activity));
+        },
+      ),
       const SizedBox(height: 16),
       if (!priorityRisk) ...<Widget>[
         _RiskCard(guidance: guidance),
@@ -313,34 +383,54 @@ bool _shouldPinRisk(WeatherGuidance guidance) {
   );
 }
 
+bool _highContrast(BuildContext context) {
+  return MediaQuery.maybeOf(context)?.highContrast ?? false;
+}
+
+bool _reduceMotion(BuildContext context) {
+  final mediaQuery = MediaQuery.maybeOf(context);
+  if (mediaQuery != null) {
+    return mediaQuery.disableAnimations || mediaQuery.accessibleNavigation;
+  }
+  final features =
+      WidgetsBinding.instance.platformDispatcher.accessibilityFeatures;
+  return features.disableAnimations || features.accessibleNavigation;
+}
+
 LinearGradient _pageBackgroundGradient(BuildContext context) {
   final isDark = Theme.of(context).brightness == Brightness.dark;
+  final highContrast = _highContrast(context);
   return isDark
-      ? const LinearGradient(
+      ? LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: <Color>[
             AppPalette.midnight,
-            Color(0xFF0D2231),
-            AppPalette.deepSea,
+            highContrast ? const Color(0xFF081520) : const Color(0xFF0D2231),
+            highContrast ? const Color(0xFF123041) : AppPalette.deepSea,
           ],
         )
-      : const LinearGradient(
+      : LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: <Color>[AppPalette.dawn, Color(0xFFF7FBFE), AppPalette.pearl],
+          colors: <Color>[
+            AppPalette.dawn,
+            highContrast ? Colors.white : const Color(0xFFF7FBFE),
+            highContrast ? AppPalette.snow : AppPalette.pearl,
+          ],
         );
 }
 
 LinearGradient _glassGradient(BuildContext context, {bool prominent = false}) {
   final isDark = Theme.of(context).brightness == Brightness.dark;
+  final highContrast = _highContrast(context);
   if (isDark && prominent) {
     return LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
       colors: <Color>[
-        Colors.white.withValues(alpha: 0.12),
-        Colors.white.withValues(alpha: 0.04),
+        Colors.white.withValues(alpha: highContrast ? 0.2 : 0.12),
+        Colors.white.withValues(alpha: highContrast ? 0.08 : 0.04),
       ],
     );
   }
@@ -349,50 +439,68 @@ LinearGradient _glassGradient(BuildContext context, {bool prominent = false}) {
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
       colors: <Color>[
-        Colors.white.withValues(alpha: 0.09),
-        Colors.white.withValues(alpha: 0.03),
+        Colors.white.withValues(alpha: highContrast ? 0.16 : 0.09),
+        Colors.white.withValues(alpha: highContrast ? 0.06 : 0.03),
       ],
     );
   }
   if (prominent) {
-    return const LinearGradient(
+    return LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: <Color>[Color(0xF9FFFFFF), Color(0xF3F3FAFF)],
+      colors: <Color>[
+        highContrast ? Colors.white : const Color(0xF9FFFFFF),
+        highContrast ? AppPalette.mist : const Color(0xF3F3FAFF),
+      ],
     );
   }
-  return const LinearGradient(
+  return LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: <Color>[Color(0xF7FFFFFF), Color(0xEEF1F7FB)],
+    colors: <Color>[
+      highContrast ? Colors.white : const Color(0xF7FFFFFF),
+      highContrast ? AppPalette.snow : const Color(0xEEF1F7FB),
+    ],
   );
 }
 
 Color _surfaceFill(BuildContext context, {bool strong = false}) {
   final isDark = Theme.of(context).brightness == Brightness.dark;
+  final highContrast = _highContrast(context);
   if (isDark) {
-    return Colors.white.withValues(alpha: strong ? 0.08 : 0.05);
+    return Colors.white.withValues(
+      alpha: strong
+          ? (highContrast ? 0.18 : 0.08)
+          : (highContrast ? 0.12 : 0.05),
+    );
   }
-  return strong ? const Color(0xFFF9FCFF) : const Color(0xF2FFFFFF);
+  return strong
+      ? (highContrast ? Colors.white : const Color(0xFFF9FCFF))
+      : (highContrast ? const Color(0xFFFBFDFF) : const Color(0xF2FFFFFF));
 }
 
 Color _surfaceBorder(BuildContext context) {
   final isDark = Theme.of(context).brightness == Brightness.dark;
+  final highContrast = _highContrast(context);
   return isDark
-      ? Colors.white.withValues(alpha: 0.08)
-      : AppPalette.ink.withValues(alpha: 0.08);
+      ? Colors.white.withValues(alpha: highContrast ? 0.24 : 0.08)
+      : AppPalette.ink.withValues(alpha: highContrast ? 0.22 : 0.08);
 }
 
 Color _sheetBackground(BuildContext context) {
   final isDark = Theme.of(context).brightness == Brightness.dark;
-  return isDark ? const Color(0xFF081520) : const Color(0xFFF5F9FD);
+  final highContrast = _highContrast(context);
+  return isDark
+      ? (highContrast ? const Color(0xFF06111A) : const Color(0xFF081520))
+      : (highContrast ? Colors.white : const Color(0xFFF5F9FD));
 }
 
 Color _sheetHandle(BuildContext context) {
   final isDark = Theme.of(context).brightness == Brightness.dark;
+  final highContrast = _highContrast(context);
   return isDark
-      ? Colors.white.withValues(alpha: 0.22)
-      : AppPalette.ink.withValues(alpha: 0.18);
+      ? Colors.white.withValues(alpha: highContrast ? 0.34 : 0.22)
+      : AppPalette.ink.withValues(alpha: highContrast ? 0.28 : 0.18);
 }
 
 Color _ambientOrbColor(
@@ -406,6 +514,10 @@ Color _ambientOrbColor(
 
 Color _glowShadow(BuildContext context) {
   final isDark = Theme.of(context).brightness == Brightness.dark;
+  final highContrast = _highContrast(context);
+  if (highContrast) {
+    return isDark ? Colors.black.withValues(alpha: 0.18) : Colors.transparent;
+  }
   return isDark ? AppPalette.glow : AppPalette.ink.withValues(alpha: 0.08);
 }
 
@@ -690,6 +802,7 @@ class _HeroCard extends StatelessWidget {
                 icon: Icons.place_rounded,
                 label: report.location.name,
                 onTap: onPickLocation,
+                semanticHint: 'Opens the UK location picker',
               ),
               _SoftChip(icon: descriptor.icon, label: descriptor.label),
               _SoftChip(
@@ -704,6 +817,7 @@ class _HeroCard extends StatelessWidget {
                     : Icons.tune_rounded,
                 label: '${explanationMode.label} guidance',
                 onTap: onOpenDisplaySettings,
+                semanticHint: 'Opens display and guidance settings',
               ),
             ],
           ),
@@ -849,6 +963,9 @@ class _NextHourCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: slots
                   .map((slot) {
+                    final label = slot == slots.first
+                        ? 'Now'
+                        : formatCompactClock(slot.time);
                     final normalized = maxPrecipitation == 0
                         ? 0.12
                         : (slot.precipitationMm / maxPrecipitation).clamp(
@@ -859,51 +976,56 @@ class _NextHourCard extends StatelessWidget {
                     return Expanded(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 5),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: <Widget>[
-                            Text(
-                              formatRain(slot.precipitationMm),
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                            const SizedBox(height: 8),
-                            AnimatedContainer(
-                              duration: const Duration(milliseconds: 500),
-                              curve: Curves.easeOutCubic,
-                              height: 18 + normalized * 62,
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.bottomCenter,
-                                  end: Alignment.topCenter,
-                                  colors: <Color>[
-                                    isWet
-                                        ? AppPalette.sky
-                                        : AppPalette.teal.withValues(
-                                            alpha: 0.72,
-                                          ),
-                                    Colors.white.withValues(alpha: 0.9),
+                        child: Semantics(
+                          container: true,
+                          label:
+                              '$label, ${formatRain(slot.precipitationMm)} of rain expected',
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: <Widget>[
+                              Text(
+                                formatRain(slot.precipitationMm),
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                              const SizedBox(height: 8),
+                              AnimatedContainer(
+                                duration: _reduceMotion(context)
+                                    ? Duration.zero
+                                    : const Duration(milliseconds: 500),
+                                curve: Curves.easeOutCubic,
+                                height: 18 + normalized * 62,
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.bottomCenter,
+                                    end: Alignment.topCenter,
+                                    colors: <Color>[
+                                      isWet
+                                          ? AppPalette.sky
+                                          : AppPalette.teal.withValues(
+                                              alpha: 0.72,
+                                            ),
+                                      Colors.white.withValues(alpha: 0.9),
+                                    ],
+                                  ),
+                                  borderRadius: BorderRadius.circular(18),
+                                  boxShadow: <BoxShadow>[
+                                    BoxShadow(
+                                      color: AppPalette.sky.withValues(
+                                        alpha: 0.22,
+                                      ),
+                                      blurRadius: 16,
+                                      offset: const Offset(0, 8),
+                                    ),
                                   ],
                                 ),
-                                borderRadius: BorderRadius.circular(18),
-                                boxShadow: <BoxShadow>[
-                                  BoxShadow(
-                                    color: AppPalette.sky.withValues(
-                                      alpha: 0.22,
-                                    ),
-                                    blurRadius: 16,
-                                    offset: const Offset(0, 8),
-                                  ),
-                                ],
                               ),
-                            ),
-                            const SizedBox(height: 10),
-                            Text(
-                              slot == slots.first
-                                  ? 'Now'
-                                  : formatCompactClock(slot.time),
-                              style: Theme.of(context).textTheme.labelLarge,
-                            ),
-                          ],
+                              const SizedBox(height: 10),
+                              Text(
+                                label,
+                                style: Theme.of(context).textTheme.labelLarge,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     );
@@ -1596,9 +1718,10 @@ class _DetailToggleCard extends StatelessWidget {
 }
 
 class _ActivitiesCard extends StatelessWidget {
-  const _ActivitiesCard({required this.guidance});
+  const _ActivitiesCard({required this.guidance, required this.onTap});
 
   final WeatherGuidance guidance;
+  final ValueChanged<ActivityRecommendation> onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1622,7 +1745,10 @@ class _ActivitiesCard extends StatelessWidget {
                       minWidth: 240,
                       maxWidth: 320,
                     ),
-                    child: _ActivityTile(activity: activity),
+                    child: _ActivityTile(
+                      activity: activity,
+                      onTap: () => onTap(activity),
+                    ),
                   );
                 })
                 .toList(growable: false),
@@ -1724,45 +1850,52 @@ class _CommuteTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _surfaceFill(context),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: _surfaceBorder(context)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
+    return MergeSemantics(
+      child: Semantics(
+        container: true,
+        label:
+            '${leg.label}, ${leg.score} out of 100, ${formatTimeRange(leg.start, leg.end)}. ${leg.summary}. ${leg.detail}',
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: _surfaceFill(context),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: _surfaceBorder(context)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      leg.label,
-                      style: Theme.of(context).textTheme.titleLarge,
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          leg.label,
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          leg.summary,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      leg.summary,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                ),
+                  ),
+                  _TonePill(tone: leg.tone, label: '${leg.score}/100'),
+                ],
               ),
-              _TonePill(tone: leg.tone, label: '${leg.score}/100'),
+              const SizedBox(height: 10),
+              Text(
+                formatTimeRange(leg.start, leg.end),
+                style: Theme.of(context).textTheme.labelLarge,
+              ),
+              const SizedBox(height: 8),
+              Text(leg.detail, style: Theme.of(context).textTheme.bodySmall),
             ],
           ),
-          const SizedBox(height: 10),
-          Text(
-            formatTimeRange(leg.start, leg.end),
-            style: Theme.of(context).textTheme.labelLarge,
-          ),
-          const SizedBox(height: 8),
-          Text(leg.detail, style: Theme.of(context).textTheme.bodySmall),
-        ],
+        ),
       ),
     );
   }
@@ -1783,59 +1916,67 @@ class _ComparisonCityTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _surfaceFill(context),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: isPrimary
-              ? AppPalette.sky.withValues(alpha: 0.3)
-              : _surfaceBorder(context),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
+    return MergeSemantics(
+      child: Semantics(
+        container: true,
+        label:
+            '${location.name}, ${formatTemperature(report.current.temperatureC)}. ${guidance.nextHour.departureAdvice}. ${guidance.dryWindow.headline}',
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: _surfaceFill(context),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(
+              color: isPrimary
+                  ? AppPalette.sky.withValues(alpha: 0.3)
+                  : _surfaceBorder(context),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Expanded(
-                child: Text(
-                  location.name,
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Text(
+                      location.name,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                  ),
+                  if (isPrimary)
+                    _SourcePill(label: 'Current', color: AppPalette.sky),
+                ],
               ),
-              if (isPrimary)
-                _SourcePill(label: 'Current', color: AppPalette.sky),
+              const SizedBox(height: 8),
+              Text(
+                formatTemperature(report.current.temperatureC),
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                guidance.nextHour.departureAdvice,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                guidance.dryWindow.headline,
+                style: Theme.of(context).textTheme.bodySmall,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            formatTemperature(report.current.temperatureC),
-            style: Theme.of(context).textTheme.headlineMedium,
-          ),
-          const SizedBox(height: 6),
-          Text(
-            guidance.nextHour.departureAdvice,
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-          const SizedBox(height: 10),
-          Text(
-            guidance.dryWindow.headline,
-            style: Theme.of(context).textTheme.bodySmall,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
 class _ActivityTile extends StatelessWidget {
-  const _ActivityTile({required this.activity});
+  const _ActivityTile({required this.activity, required this.onTap});
 
   final ActivityRecommendation activity;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1850,49 +1991,67 @@ class _ActivityTile extends StatelessWidget {
       ActivitySuitability.poor => 'Weak',
     };
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _surfaceFill(context),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: _surfaceBorder(context)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
-            children: <Widget>[
-              Icon(activity.icon, color: color),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  activity.name,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
+    return MergeSemantics(
+      child: Semantics(
+        button: true,
+        label:
+            '${activity.name}, ${activity.score} out of 10, $label. ${activity.detail}',
+        hint: 'Double tap for a fuller explanation',
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(22),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: _surfaceFill(context),
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: _surfaceBorder(context)),
               ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text(
-                    '${activity.score}/10',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.titleLarge?.copyWith(color: color),
+                  Row(
+                    children: <Widget>[
+                      Icon(activity.icon, color: color),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          activity.name,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: <Widget>[
+                          Text(
+                            '${activity.score}/10',
+                            style: Theme.of(
+                              context,
+                            ).textTheme.titleLarge?.copyWith(color: color),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            label,
+                            style: Theme.of(
+                              context,
+                            ).textTheme.bodySmall?.copyWith(color: color),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 10),
                   Text(
-                    label,
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(color: color),
+                    activity.detail,
+                    style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ],
               ),
-            ],
+            ),
           ),
-          const SizedBox(height: 10),
-          Text(activity.detail, style: Theme.of(context).textTheme.bodySmall),
-        ],
+        ),
       ),
     );
   }
@@ -1910,47 +2069,53 @@ class _WidgetSummaryTile extends StatelessWidget {
       AdviceTone.watch => AppPalette.amber,
       AdviceTone.wait => AppPalette.coral,
     };
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _surfaceFill(context),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: _surfaceBorder(context)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
+    return MergeSemantics(
+      child: Semantics(
+        container: true,
+        label: '${card.title}. ${card.value}. ${card.detail}',
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: _surfaceFill(context),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: _surfaceBorder(context)),
+          ),
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Container(
-                height: 42,
-                width: 42,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(card.icon, color: color),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Container(
+                    height: 42,
+                    width: 42,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Icon(card.icon, color: color),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      card.title,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  card.title,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
+              const SizedBox(height: 14),
+              Text(card.value, style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 8),
+              Text(
+                card.detail,
+                style: Theme.of(context).textTheme.bodySmall,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          Text(card.value, style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 8),
-          Text(
-            card.detail,
-            style: Theme.of(context).textTheme.bodySmall,
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -2075,39 +2240,56 @@ class _TonePill extends StatelessWidget {
 }
 
 class _SoftChip extends StatelessWidget {
-  const _SoftChip({required this.icon, required this.label, this.onTap});
+  const _SoftChip({
+    required this.icon,
+    required this.label,
+    this.onTap,
+    this.semanticHint,
+  });
 
   final IconData icon;
   final String label;
   final VoidCallback? onTap;
+  final String? semanticHint;
 
   @override
   Widget build(BuildContext context) {
-    final content = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: _surfaceFill(context, strong: true),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: _surfaceBorder(context)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Icon(icon, size: 18, color: AppPalette.sky),
-          const SizedBox(width: 8),
-          Text(label, style: Theme.of(context).textTheme.labelLarge),
-        ],
+    final content = ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 48),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: _surfaceFill(context, strong: true),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: _surfaceBorder(context)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(icon, size: 18, color: AppPalette.sky),
+            const SizedBox(width: 8),
+            Text(label, style: Theme.of(context).textTheme.labelLarge),
+          ],
+        ),
       ),
     );
 
     if (onTap == null) {
-      return content;
+      return MergeSemantics(child: content);
     }
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(999),
-      child: content,
+    return Semantics(
+      button: true,
+      label: label,
+      hint: semanticHint,
+      child: Tooltip(
+        message: label,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(999),
+          child: content,
+        ),
+      ),
     );
   }
 }
@@ -2344,6 +2526,175 @@ class _GlowOrb extends StatelessWidget {
   }
 }
 
+class ActivityDetailSheet extends StatelessWidget {
+  const ActivityDetailSheet({super.key, required this.activity});
+
+  final ActivityRecommendation activity;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = switch (activity.suitability) {
+      ActivitySuitability.great => AppPalette.teal,
+      ActivitySuitability.okay => AppPalette.amber,
+      ActivitySuitability.poor => AppPalette.coral,
+    };
+    final outlook = switch (activity.suitability) {
+      ActivitySuitability.great => 'Strong fit for the day',
+      ActivitySuitability.okay => 'Usable with a bit of care',
+      ActivitySuitability.poor => 'Probably better to skip or delay',
+    };
+
+    return Container(
+      decoration: BoxDecoration(
+        color: _sheetBackground(context),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+        border: Border.all(color: _surfaceBorder(context)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Center(
+                child: Container(
+                  height: 5,
+                  width: 46,
+                  decoration: BoxDecoration(
+                    color: _sheetHandle(context),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Container(
+                    height: 54,
+                    width: 54,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Icon(activity.icon, color: color),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          activity.name,
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '$outlook, scored ${activity.score} out of 10.',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: _surfaceFill(context),
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(color: _surfaceBorder(context)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      '${activity.score}/10',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.displaySmall?.copyWith(color: color),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      activity.detail,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Scores stay practical and privacy-friendly. They reflect weather comfort, timing, rain, and wind, not where you personally go.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SettingsSwitchTile extends StatelessWidget {
+  const _SettingsSwitchTile({
+    required this.icon,
+    required this.title,
+    required this.detail,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final IconData icon;
+  final String title;
+  final String detail;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return MergeSemantics(
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: _surfaceFill(context),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: _surfaceBorder(context)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Container(
+              height: 42,
+              width: 42,
+              decoration: BoxDecoration(
+                color: _surfaceFill(context, strong: true),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(icon, color: AppPalette.sky),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(title, style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 4),
+                  Text(detail, style: Theme.of(context).textTheme.bodySmall),
+                ],
+              ),
+            ),
+            Switch.adaptive(value: value, onChanged: onChanged),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class DisplaySettingsSheet extends ConsumerWidget {
   const DisplaySettingsSheet({super.key});
 
@@ -2351,6 +2702,7 @@ class DisplaySettingsSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(displaySettingsControllerProvider);
     final dashboard = ref.watch(weatherDashboardControllerProvider);
+    final analytics = ref.watch(analyticsSettingsControllerProvider);
 
     return Container(
       decoration: BoxDecoration(
@@ -2459,57 +2811,56 @@ class DisplaySettingsSheet extends ConsumerWidget {
                 },
               ),
               const SizedBox(height: 18),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: _surfaceFill(context),
-                  borderRadius: BorderRadius.circular(22),
-                  border: Border.all(color: _surfaceBorder(context)),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Container(
-                      height: 42,
-                      width: 42,
-                      decoration: BoxDecoration(
-                        color: _surfaceFill(context, strong: true),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: const Icon(
-                        Icons.text_fields_rounded,
-                        color: AppPalette.sky,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Text(
-                            'Large text mode',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Improves legibility across cards, sheets, and summaries.',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
-                      ),
-                    ),
-                    Switch.adaptive(
-                      value: settings.largeText,
-                      onChanged: (value) {
-                        unawaited(
-                          ref
-                              .read(displaySettingsControllerProvider.notifier)
-                              .setLargeText(value),
-                        );
-                      },
-                    ),
-                  ],
-                ),
+              Text(
+                'Accessibility',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 10),
+              _SettingsSwitchTile(
+                icon: Icons.text_fields_rounded,
+                title: 'Large text mode',
+                detail:
+                    'Respects system text scaling and adds extra headroom across cards and sheets.',
+                value: settings.largeText,
+                onChanged: (value) {
+                  unawaited(
+                    ref
+                        .read(displaySettingsControllerProvider.notifier)
+                        .setLargeText(value),
+                  );
+                },
+              ),
+              const SizedBox(height: 12),
+              _SettingsSwitchTile(
+                icon: Icons.contrast_rounded,
+                title: 'High contrast',
+                detail:
+                    'Strengthens text, outlines, and surfaces for easier scanning in bright or low-vision conditions.',
+                value: settings.highContrast,
+                onChanged: (value) {
+                  unawaited(
+                    ref
+                        .read(displaySettingsControllerProvider.notifier)
+                        .setHighContrast(value),
+                  );
+                },
+              ),
+              const SizedBox(height: 18),
+              Text('Privacy', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 10),
+              _SettingsSwitchTile(
+                icon: Icons.analytics_outlined,
+                title: 'Anonymous feature analytics',
+                detail:
+                    'Tracks only broad feature usage counts. Dry Slots does not record routine labels, search terms, or exact locations here.',
+                value: analytics.enabled,
+                onChanged: (value) {
+                  unawaited(
+                    ref
+                        .read(analyticsSettingsControllerProvider.notifier)
+                        .setEnabled(value),
+                  );
+                },
               ),
             ],
           ),
@@ -2876,23 +3227,28 @@ class _TimeField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(22),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        decoration: BoxDecoration(
-          color: _surfaceFill(context, strong: true),
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: _surfaceBorder(context)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text(label, style: Theme.of(context).textTheme.bodySmall),
-            const SizedBox(height: 6),
-            Text(value, style: Theme.of(context).textTheme.titleLarge),
-          ],
+    return Semantics(
+      button: true,
+      label: '$label time, $value',
+      hint: 'Double tap to choose a time',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(22),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          decoration: BoxDecoration(
+            color: _surfaceFill(context, strong: true),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: _surfaceBorder(context)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(label, style: Theme.of(context).textTheme.bodySmall),
+              const SizedBox(height: 6),
+              Text(value, style: Theme.of(context).textTheme.titleLarge),
+            ],
+          ),
         ),
       ),
     );
@@ -3060,63 +3416,71 @@ class _LocationSearchSheetState extends State<LocationSearchSheet> {
                     final selected =
                         location.name == widget.selectedLocation.name &&
                         location.region == widget.selectedLocation.region;
-                    return InkWell(
-                      borderRadius: BorderRadius.circular(22),
-                      onTap: () => Navigator.of(context).pop(location),
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: selected
-                              ? _surfaceFill(context, strong: true)
-                              : _surfaceFill(context),
-                          borderRadius: BorderRadius.circular(22),
-                          border: Border.all(
+                    return Semantics(
+                      button: true,
+                      selected: selected,
+                      label: '${location.name}, ${location.subtitle}',
+                      hint: selected
+                          ? 'Current selected location'
+                          : 'Double tap to choose this location',
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(22),
+                        onTap: () => Navigator.of(context).pop(location),
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
                             color: selected
-                                ? AppPalette.sky.withValues(alpha: 0.45)
-                                : _surfaceBorder(context),
+                                ? _surfaceFill(context, strong: true)
+                                : _surfaceFill(context),
+                            borderRadius: BorderRadius.circular(22),
+                            border: Border.all(
+                              color: selected
+                                  ? AppPalette.sky.withValues(alpha: 0.45)
+                                  : _surfaceBorder(context),
+                            ),
                           ),
-                        ),
-                        child: Row(
-                          children: <Widget>[
-                            Container(
-                              height: 44,
-                              width: 44,
-                              decoration: BoxDecoration(
-                                color: _surfaceFill(context, strong: true),
-                                borderRadius: BorderRadius.circular(14),
+                          child: Row(
+                            children: <Widget>[
+                              Container(
+                                height: 44,
+                                width: 44,
+                                decoration: BoxDecoration(
+                                  color: _surfaceFill(context, strong: true),
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                child: const Icon(
+                                  Icons.place_rounded,
+                                  color: AppPalette.sky,
+                                ),
                               ),
-                              child: const Icon(
-                                Icons.place_rounded,
-                                color: AppPalette.sky,
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: <Widget>[
+                                    Text(
+                                      location.name,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleMedium,
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      location.subtitle,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodySmall,
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: <Widget>[
-                                  Text(
-                                    location.name,
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.titleMedium,
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    location.subtitle,
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.bodySmall,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            if (selected)
-                              const Icon(
-                                Icons.check_circle_rounded,
-                                color: AppPalette.teal,
-                              ),
-                          ],
+                              if (selected)
+                                const Icon(
+                                  Icons.check_circle_rounded,
+                                  color: AppPalette.teal,
+                                ),
+                            ],
+                          ),
                         ),
                       ),
                     );

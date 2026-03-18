@@ -21,11 +21,29 @@ sealed class AppPalette {
 }
 
 final class AppTheme {
-  static ThemeData buildLight() => _build(Brightness.light);
+  static ThemeData buildLight({
+    bool highContrast = false,
+    bool reduceMotion = false,
+  }) => _build(
+    Brightness.light,
+    highContrast: highContrast,
+    reduceMotion: reduceMotion,
+  );
 
-  static ThemeData buildDark() => _build(Brightness.dark);
+  static ThemeData buildDark({
+    bool highContrast = false,
+    bool reduceMotion = false,
+  }) => _build(
+    Brightness.dark,
+    highContrast: highContrast,
+    reduceMotion: reduceMotion,
+  );
 
-  static ThemeData _build(Brightness brightness) {
+  static ThemeData _build(
+    Brightness brightness, {
+    required bool highContrast,
+    required bool reduceMotion,
+  }) {
     final isDark = brightness == Brightness.dark;
     final scheme = ColorScheme.fromSeed(
       seedColor: AppPalette.sky,
@@ -41,20 +59,28 @@ final class AppTheme {
       useMaterial3: true,
       brightness: brightness,
     ).textTheme;
-    final primaryText = isDark ? AppPalette.mist : AppPalette.ink;
-    final secondaryText = isDark ? AppPalette.muted : AppPalette.slate;
+    final primaryText = isDark
+        ? Colors.white
+        : (highContrast ? AppPalette.midnight : AppPalette.ink);
+    final secondaryText = highContrast
+        ? primaryText
+        : (isDark ? AppPalette.muted : AppPalette.slate);
     final surfaceFill = isDark
-        ? Colors.white.withValues(alpha: 0.06)
-        : Colors.white.withValues(alpha: 0.78);
+        ? Colors.white.withValues(alpha: highContrast ? 0.16 : 0.06)
+        : Colors.white.withValues(alpha: highContrast ? 0.96 : 0.78);
     final selectedFill = isDark
-        ? Colors.white.withValues(alpha: 0.14)
-        : AppPalette.sky.withValues(alpha: 0.18);
-    final outline = isDark
-        ? Colors.white.withValues(alpha: 0.1)
-        : AppPalette.ink.withValues(alpha: 0.08);
+        ? Colors.white.withValues(alpha: highContrast ? 0.24 : 0.14)
+        : AppPalette.sky.withValues(alpha: highContrast ? 0.28 : 0.18);
+    final outline = highContrast
+        ? (isDark
+              ? Colors.white.withValues(alpha: 0.28)
+              : AppPalette.ink.withValues(alpha: 0.24))
+        : (isDark
+              ? Colors.white.withValues(alpha: 0.1)
+              : AppPalette.ink.withValues(alpha: 0.08));
     final filledButtonBackground = isDark
-        ? Colors.white.withValues(alpha: 0.12)
-        : AppPalette.ink.withValues(alpha: 0.92);
+        ? Colors.white.withValues(alpha: highContrast ? 0.24 : 0.12)
+        : AppPalette.ink.withValues(alpha: highContrast ? 1.0 : 0.92);
 
     final textTheme = baseTextTheme.copyWith(
       displaySmall: TextStyle(
@@ -130,9 +156,12 @@ final class AppTheme {
       colorScheme: scheme,
       textTheme: textTheme,
       scaffoldBackgroundColor: Colors.transparent,
-      splashFactory: InkSparkle.splashFactory,
+      splashFactory: reduceMotion
+          ? NoSplash.splashFactory
+          : InkSparkle.splashFactory,
       cardColor: surfaceFill,
       dividerColor: outline,
+      materialTapTargetSize: MaterialTapTargetSize.padded,
       iconTheme: IconThemeData(color: primaryText),
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,
@@ -173,12 +202,19 @@ final class AppTheme {
         style: FilledButton.styleFrom(
           backgroundColor: filledButtonBackground,
           foregroundColor: isDark ? AppPalette.mist : AppPalette.dawn,
+          minimumSize: const Size(48, 48),
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
           textStyle: textTheme.labelLarge,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
           ),
         ),
+      ),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(minimumSize: const Size(48, 48)),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
       ),
       progressIndicatorTheme: const ProgressIndicatorThemeData(
         color: AppPalette.sky,
