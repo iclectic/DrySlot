@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import '../domain/weather_models.dart';
+import 'weather_provider_config.dart';
 
 class WeatherLocalStore {
   WeatherLocalStore(this._box);
@@ -68,15 +69,24 @@ class WeatherLocalStore {
     );
   }
 
-  WeatherReport? getCachedReport(WeatherLocation location) {
+  WeatherReport? getCachedReport(
+    WeatherLocation location, {
+    WeatherDataProvider provider = WeatherDataProvider.openMeteo,
+  }) {
     return _readObject(
-      _reportKey(location),
+      _reportKey(location, provider),
       (json) => WeatherReport.fromJson(json),
     );
   }
 
-  Future<void> cacheReport(WeatherReport report) {
-    return _box.put(_reportKey(report.location), jsonEncode(report.toJson()));
+  Future<void> cacheReport(
+    WeatherReport report, {
+    required WeatherDataProvider provider,
+  }) {
+    return _box.put(
+      _reportKey(report.location, provider),
+      jsonEncode(report.toJson()),
+    );
   }
 
   T? _readObject<T>(String key, T Function(Map<String, dynamic>) builder) {
@@ -93,9 +103,9 @@ class WeatherLocalStore {
     }
   }
 
-  String _reportKey(WeatherLocation location) {
+  String _reportKey(WeatherLocation location, WeatherDataProvider provider) {
     final latitude = location.latitude.toStringAsFixed(3);
     final longitude = location.longitude.toStringAsFixed(3);
-    return 'report.$latitude.$longitude';
+    return 'report.${provider.cacheKey}.$latitude.$longitude';
   }
 }

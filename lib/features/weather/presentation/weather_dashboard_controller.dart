@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/app_providers.dart';
 import '../data/weather_local_store.dart';
+import '../data/weather_provider_config.dart';
 import '../data/weather_repository.dart';
 import '../domain/weather_advisor.dart';
 import '../domain/weather_models.dart';
@@ -49,6 +50,8 @@ class WeatherDashboardController extends Notifier<WeatherDashboardState> {
   WeatherRepository get _repository => ref.read(weatherRepositoryProvider);
   WeatherLocalStore get _localStore => ref.read(weatherLocalStoreProvider);
   WeatherAdvisor get _advisor => ref.read(weatherAdvisorProvider);
+  WeatherDataProvider get _activeProvider =>
+      ref.read(activeWeatherDataProviderProvider);
 
   @override
   WeatherDashboardState build() {
@@ -69,10 +72,17 @@ class WeatherDashboardController extends Notifier<WeatherDashboardState> {
             _sameLocation(rawComparisonLocation, selectedLocation)
         ? null
         : rawComparisonLocation;
-    final report = localStore.getCachedReport(selectedLocation);
+    final activeProvider = ref.watch(activeWeatherDataProviderProvider);
+    final report = localStore.getCachedReport(
+      selectedLocation,
+      provider: activeProvider,
+    );
     final comparisonReport = comparisonLocation == null
         ? null
-        : localStore.getCachedReport(comparisonLocation);
+        : localStore.getCachedReport(
+            comparisonLocation,
+            provider: activeProvider,
+          );
 
     final guidance = report == null
         ? null
@@ -146,7 +156,10 @@ class WeatherDashboardController extends Notifier<WeatherDashboardState> {
       return;
     }
 
-    final cached = _localStore.getCachedReport(sanitized);
+    final cached = _localStore.getCachedReport(
+      sanitized,
+      provider: _activeProvider,
+    );
     state = state.copyWith(
       comparisonReport: cached,
       comparisonGuidance: cached == null
@@ -172,10 +185,16 @@ class WeatherDashboardController extends Notifier<WeatherDashboardState> {
         ? null
         : state.comparisonLocation;
 
-    final cachedReport = _localStore.getCachedReport(nextLocation);
+    final cachedReport = _localStore.getCachedReport(
+      nextLocation,
+      provider: _activeProvider,
+    );
     final cachedComparison = sanitizedComparison == null
         ? null
-        : _localStore.getCachedReport(sanitizedComparison);
+        : _localStore.getCachedReport(
+            sanitizedComparison,
+            provider: _activeProvider,
+          );
 
     state = state.copyWith(
       selectedLocation: nextLocation,

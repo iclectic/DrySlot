@@ -26,6 +26,18 @@ flutter pub get
 flutter run
 ```
 
+## Provider Selection
+
+Dry Slots keeps weather vendors behind a single repository interface so the
+domain layer does not depend on one API shape.
+
+- Default provider: `Open-Meteo`
+- WeatherAPI.com: `flutter run --dart-define=DRY_SLOTS_WEATHER_PROVIDER=weatherApi --dart-define=DRY_SLOTS_WEATHERAPI_KEY=your_key`
+- OpenWeather: `flutter run --dart-define=DRY_SLOTS_WEATHER_PROVIDER=openWeather --dart-define=DRY_SLOTS_OPENWEATHER_KEY=your_key`
+
+If a keyed provider is selected without a valid API key, the app falls back to
+Open-Meteo automatically.
+
 ## Verify
 
 ```bash
