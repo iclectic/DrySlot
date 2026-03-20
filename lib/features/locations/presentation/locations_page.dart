@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/services/device_location_service.dart';
 import '../../../core/widgets/app_surface_card.dart';
 import '../../../core/widgets/atmospheric_scaffold.dart';
 import '../../weather/data/weather_repository.dart';
@@ -10,6 +11,23 @@ import '../../weather/presentation/weather_dashboard_page.dart';
 
 class LocationsPage extends ConsumerWidget {
   const LocationsPage({super.key});
+
+  Future<void> _useCurrentLocation(BuildContext context, WidgetRef ref) async {
+    final result = await ref
+        .read(deviceLocationServiceProvider)
+        .fetchCurrentLocation();
+    if (result.location != null) {
+      await ref
+          .read(weatherDashboardControllerProvider.notifier)
+          .refresh(location: result.location);
+    }
+    if (!context.mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(result.message)));
+  }
 
   Future<void> _pickMainLocation(BuildContext context, WidgetRef ref) async {
     final state = ref.read(weatherDashboardControllerProvider);
@@ -61,6 +79,24 @@ class LocationsPage extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
         children: <Widget>[
+          AppSurfaceCard(
+            onTap: () => _useCurrentLocation(context, ref),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  'Use current location',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Ask the device for your current place and switch the forecast automatically.',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
           AppSurfaceCard(
             onTap: () => _pickMainLocation(context, ref),
             child: Column(

@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/preferences/app_preferences_controller.dart';
 import '../../../core/routing/route_paths.dart';
+import '../../../core/services/device_location_service.dart';
+import '../../../core/services/notification_permission_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../weather/data/weather_repository.dart';
 import '../../weather/domain/weather_models.dart';
@@ -21,7 +23,13 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
   int _step = 0;
   bool _notificationsEnabled = false;
   bool _routineSupportEnabled = true;
+  bool _locationBusy = false;
+  bool _notificationBusy = false;
   WeatherLocation? _pickedLocation;
+  String? _locationStatusMessage;
+  String? _notificationStatusMessage;
+  bool _locationCanOpenSettings = false;
+  bool _notificationsCanOpenSettings = false;
 
   Future<void> _pickLocation() async {
     final state = ref.read(weatherDashboardControllerProvider);
@@ -50,6 +58,70 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
     setState(() {
       _pickedLocation = picked;
       _step = 2;
+      _locationStatusMessage = 'Using ${picked.name} for local guidance.';
+      _locationCanOpenSettings = false;
+    });
+  }
+
+  Future<void> _useCurrentLocation() async {
+    setState(() {
+      _locationBusy = true;
+      _locationStatusMessage = null;
+    });
+
+    final result = await ref
+        .read(deviceLocationServiceProvider)
+        .fetchCurrentLocation();
+
+    if (result.location != null) {
+      await ref
+          .read(weatherDashboardControllerProvider.notifier)
+          .refresh(location: result.location);
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _locationBusy = false;
+      _locationStatusMessage = result.message;
+      _locationCanOpenSettings = result.canOpenSettings;
+      if (result.location != null) {
+        _pickedLocation = result.location;
+        _step = 2;
+      }
+    });
+  }
+
+  Future<void> _toggleNotifications(bool value) async {
+    if (!value) {
+      setState(() {
+        _notificationsEnabled = false;
+        _notificationStatusMessage = 'Notifications are off for now.';
+        _notificationsCanOpenSettings = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _notificationBusy = true;
+      _notificationStatusMessage = null;
+    });
+
+    final result = await ref
+        .read(notificationPermissionServiceProvider)
+        .requestPermission();
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _notificationBusy = false;
+      _notificationsEnabled = result.isGranted;
+      _notificationStatusMessage = result.message;
+      _notificationsCanOpenSettings = result.canOpenSettings;
     });
   }
 
@@ -79,14 +151,14 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
       _OnboardingStepData(
         eyebrow: 'Start with a place',
         title: _pickedLocation == null
-            ? 'Pick your first location.'
+            ? 'Use your current location or search instead.'
             : '${_pickedLocation!.name} is set for now.',
         detail:
-            'Search for your town or city to get straight into useful advice. Device location can be layered in next.',
+            'Dry Slots can ask for your current location so next rain and dry slots feel instantly local. You can still search manually if you prefer.',
         primaryLabel: _pickedLocation == null
-            ? 'Search for a location'
-            : 'Use this location',
-        secondaryLabel: 'Skip for now',
+            ? 'Use current location'
+            : 'Continue',
+        secondaryLabel: 'Search instead',
       ),
       const _OnboardingStepData(
         eyebrow: 'Stay ahead of the weather',
@@ -159,12 +231,45 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
                   ],
                 ),
               if (_step == 1)
-                _SetupCard(
-                  title: _pickedLocation?.name ?? 'No location chosen yet',
-                  detail: _pickedLocation == null
-                      ? 'Pick somewhere to get going quickly.'
-                      : '${_pickedLocation!.subtitle}. You can change this any time.',
-                  icon: Icons.location_on_outlined,
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    _SetupCard(
+                      title: _pickedLocation?.name ?? 'No location chosen yet',
+                      detail: _pickedLocation == null
+                          ? 'Use your device location for faster setup, or search for a place manually.'
+                          : '${_pickedLocation!.subtitle}. You can change this any time.',
+                      icon: Icons.location_on_outlined,
+                    ),
+                    if (_locationStatusMessage != null) ...<Widget>[
+                      const SizedBox(height: 12),
+                      Text(
+                        _locationStatusMessage!,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ],
+                    if (_locationCanOpenSettings) ...<Widget>[
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: <Widget>[
+                          OutlinedButton(
+                            onPressed: () => ref
+                                .read(deviceLocationServiceProvider)
+                                .openAppSettings(),
+                            child: const Text('Open app settings'),
+                          ),
+                          OutlinedButton(
+                            onPressed: () => ref
+                                .read(deviceLocationServiceProvider)
+                                .openLocationSettings(),
+                            child: const Text('Open location settings'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
                 ),
               if (_step == 2) ...<Widget>[
                 SwitchListTile.adaptive(
@@ -174,12 +279,28 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
                     'Morning briefings, routine reminders, and severe-weather prompts later on.',
                   ),
                   value: _notificationsEnabled,
-                  onChanged: (value) {
-                    setState(() {
-                      _notificationsEnabled = value;
-                    });
-                  },
+                  onChanged: _notificationBusy ? null : _toggleNotifications,
                 ),
+                if (_notificationStatusMessage != null) ...<Widget>[
+                  const SizedBox(height: 4),
+                  Text(
+                    _notificationStatusMessage!,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ],
+                if (_notificationsCanOpenSettings) ...<Widget>[
+                  const SizedBox(height: 12),
+                  OutlinedButton(
+                    onPressed: () => ref
+                        .read(notificationPermissionServiceProvider)
+                        .openSettings(),
+                    child: const Text('Open notification settings'),
+                  ),
+                ],
+                if (_notificationBusy) ...<Widget>[
+                  const SizedBox(height: 12),
+                  const LinearProgressIndicator(),
+                ],
                 const SizedBox(height: 12),
                 SwitchListTile.adaptive(
                   contentPadding: EdgeInsets.zero,
@@ -199,26 +320,34 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
               SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: () {
-                    if (_step == 0) {
-                      setState(() {
-                        _step = 1;
-                      });
-                      return;
-                    }
-                    if (_step == 1) {
-                      if (_pickedLocation != null) {
-                        setState(() {
-                          _step = 2;
-                        });
-                      } else {
-                        _pickLocation();
-                      }
-                      return;
-                    }
-                    _finish();
-                  },
-                  child: Text(stepData.primaryLabel),
+                  onPressed: _locationBusy || _notificationBusy
+                      ? null
+                      : () {
+                          if (_step == 0) {
+                            setState(() {
+                              _step = 1;
+                            });
+                            return;
+                          }
+                          if (_step == 1) {
+                            if (_pickedLocation != null) {
+                              setState(() {
+                                _step = 2;
+                              });
+                            } else {
+                              _useCurrentLocation();
+                            }
+                            return;
+                          }
+                          _finish();
+                        },
+                  child: Text(
+                    _step == 1 && _locationBusy
+                        ? 'Finding your location…'
+                        : _step == 2 && _notificationBusy
+                        ? 'Checking notification access…'
+                        : stepData.primaryLabel,
+                  ),
                 ),
               ),
               if (stepData.secondaryLabel != null) ...<Widget>[
@@ -226,14 +355,39 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
                 SizedBox(
                   width: double.infinity,
                   child: TextButton(
-                    onPressed: () {
-                      if (_step == 1) {
-                        setState(() {
-                          _step = 2;
-                        });
-                      }
-                    },
+                    onPressed: _locationBusy || _notificationBusy
+                        ? null
+                        : () {
+                            if (_step == 1) {
+                              _pickLocation();
+                              return;
+                            }
+                          },
                     child: Text(stepData.secondaryLabel!),
+                  ),
+                ),
+              ],
+              if (_step == 1 && _locationBusy) ...<Widget>[
+                const SizedBox(height: 12),
+                const LinearProgressIndicator(),
+              ],
+              if (_step == 1) ...<Widget>[
+                const SizedBox(height: 6),
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    onPressed: _locationBusy
+                        ? null
+                        : () {
+                            setState(() {
+                              _step = 2;
+                              _locationStatusMessage =
+                                  'You can set your location later from the locations screen.';
+                            });
+                          },
+                    child: _locationBusy
+                        ? const Text('Finding your location…')
+                        : const Text('Skip for now'),
                   ),
                 ),
               ],

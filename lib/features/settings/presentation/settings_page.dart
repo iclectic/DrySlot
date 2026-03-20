@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/analytics/analytics_settings_controller.dart';
 import '../../../core/preferences/app_preferences_controller.dart';
 import '../../../core/routing/route_paths.dart';
+import '../../../core/services/notification_permission_service.dart';
 import '../../../core/theme/display_settings_controller.dart';
 import '../../../core/widgets/app_surface_card.dart';
 import '../../../core/widgets/atmospheric_scaffold.dart';
@@ -107,9 +108,53 @@ class SettingsPage extends ConsumerWidget {
                     'Morning briefings, routine nudges, and severe-weather prompts when those surfaces are enabled.',
                   ),
                   value: preferences.notificationsEnabled,
-                  onChanged: (value) => ref
-                      .read(appPreferencesControllerProvider.notifier)
-                      .setNotificationsEnabled(value),
+                  onChanged: (value) async {
+                    if (!value) {
+                      await ref
+                          .read(appPreferencesControllerProvider.notifier)
+                          .setNotificationsEnabled(false);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Weather notifications are off for now.',
+                            ),
+                          ),
+                        );
+                      }
+                      return;
+                    }
+
+                    final result = await ref
+                        .read(notificationPermissionServiceProvider)
+                        .requestPermission();
+                    await ref
+                        .read(appPreferencesControllerProvider.notifier)
+                        .setNotificationsEnabled(result.isGranted);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(SnackBar(content: Text(result.message)));
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          AppSurfaceCard(
+            onTap: () => context.push(RoutePaths.locations),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  'Location access',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Switch location, use your current place, or add a comparison city from the locations screen.',
+                  style: Theme.of(context).textTheme.bodyMedium,
                 ),
               ],
             ),
