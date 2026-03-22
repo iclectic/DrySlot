@@ -1,4 +1,4 @@
-import 'package:dry_slots/features/weather/data/weather_provider_config.dart';
+import 'package:dry_slots/features/weather_core/data/weather_provider_config.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 
-import '../../features/weather/domain/weather_models.dart';
+import '../../features/weather_core/domain/weather_models.dart';
 
 final deviceLocationServiceProvider = Provider<DeviceLocationService>((ref) {
   return const DeviceLocationService();

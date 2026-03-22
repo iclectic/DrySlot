@@ -6,7 +6,7 @@ import '../../../core/utils/formatters.dart';
 import '../../../core/widgets/app_surface_card.dart';
 import '../../../core/widgets/atmospheric_scaffold.dart';
 import '../../../core/widgets/weather_state_guard.dart';
-import '../../weather/domain/weather_models.dart';
+import '../../weather_core/domain/weather_models.dart';
 
 class NextRainPage extends StatelessWidget {
   const NextRainPage({super.key});

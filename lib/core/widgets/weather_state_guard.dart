@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../features/weather/domain/weather_models.dart';
-import '../../features/weather/presentation/weather_dashboard_controller.dart';
+import '../../features/weather_core/domain/weather_models.dart';
+import '../../features/weather_core/presentation/weather_dashboard_controller.dart';
 import 'atmospheric_scaffold.dart';
 
 typedef WeatherStateBuilder =

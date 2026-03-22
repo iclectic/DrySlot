@@ -4,9 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/preferences/app_preferences_controller.dart';
 import '../../../core/widgets/app_surface_card.dart';
 import '../../../core/widgets/atmospheric_scaffold.dart';
-import '../../weather/domain/weather_models.dart';
-import '../../weather/presentation/weather_dashboard_controller.dart';
-import '../../weather/presentation/weather_dashboard_page.dart';
+import '../../weather_core/domain/weather_models.dart';
+import '../../weather_core/presentation/weather_dashboard_controller.dart';
+import '../../weather_core/presentation/weather_shared_sheets.dart';
 
 class RoutinesPage extends ConsumerWidget {
   const RoutinesPage({super.key});

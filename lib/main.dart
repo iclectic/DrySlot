@@ -5,7 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app.dart';
 import 'core/providers/app_providers.dart';
-import 'features/weather/data/weather_local_store.dart';
+import 'features/weather_core/data/weather_local_store.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

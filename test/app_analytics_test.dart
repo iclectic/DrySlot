@@ -1,5 +1,5 @@
 import 'package:dry_slots/core/analytics/app_analytics.dart';
-import 'package:dry_slots/features/weather/domain/weather_models.dart';
+import 'package:dry_slots/features/weather_core/domain/weather_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

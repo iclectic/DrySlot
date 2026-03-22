@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../features/weather/domain/weather_models.dart';
+import '../../features/weather_core/domain/weather_models.dart';
 import 'analytics_settings_controller.dart';
 
 final analyticsSinkProvider = Provider<AnalyticsSink>((ref) {

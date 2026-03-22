@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/preferences/app_preferences_controller.dart';
 import '../../../core/routing/route_paths.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../weather/presentation/weather_dashboard_controller.dart';
+import '../../weather_core/presentation/weather_dashboard_controller.dart';
 
 class SplashPage extends ConsumerStatefulWidget {
   const SplashPage({super.key});

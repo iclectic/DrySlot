@@ -9,10 +9,10 @@ import '../../../core/services/notification_permission_service.dart';
 import '../../../core/theme/display_settings_controller.dart';
 import '../../../core/widgets/app_surface_card.dart';
 import '../../../core/widgets/atmospheric_scaffold.dart';
-import '../../weather/data/weather_provider_config.dart';
-import '../../weather/data/weather_repository.dart';
-import '../../weather/domain/weather_models.dart';
-import '../../weather/presentation/weather_dashboard_controller.dart';
+import '../../weather_core/data/weather_provider_config.dart';
+import '../../weather_core/data/weather_repository.dart';
+import '../../weather_core/domain/weather_models.dart';
+import '../../weather_core/presentation/weather_dashboard_controller.dart';
 
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
