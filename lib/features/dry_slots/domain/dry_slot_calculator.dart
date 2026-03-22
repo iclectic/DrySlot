@@ -1,8 +1,8 @@
 import 'dart:math';
 
 import '../../../core/utils/formatters.dart';
-import 'weather_describer.dart';
-import 'weather_models.dart';
+import '../../weather/domain/weather_describer.dart';
+import '../../weather_core/domain/weather_models.dart';
 
 class DrySlotCalculator {
   const DrySlotCalculator();

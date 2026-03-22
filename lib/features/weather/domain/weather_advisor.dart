@@ -1,14 +1,14 @@
 import 'dart:math';
 
 import '../../../core/utils/formatters.dart';
-import 'activity_score_service.dart';
-import 'commute_weather_service.dart';
-import 'dry_slot_calculator.dart';
-import 'outfit_recommendation_service.dart';
-import 'severe_alert_interpreter.dart';
+import '../../activities/domain/activity_score_service.dart';
+import '../../alerts/domain/severe_alert_interpreter.dart';
+import '../../commute/domain/commute_weather_service.dart';
+import '../../dry_slots/domain/dry_slot_calculator.dart';
+import '../../outfit/domain/outfit_recommendation_service.dart';
+import '../../weather_home/domain/weather_summary_generator.dart';
 import 'weather_interpreter.dart';
 import 'weather_models.dart';
-import 'weather_summary_generator.dart';
 
 class WeatherAdvisor {
   const WeatherAdvisor({

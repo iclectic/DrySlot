@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/utils/formatters.dart';
-import 'weather_describer.dart';
-import 'weather_interpreter.dart';
-import 'weather_models.dart';
+import '../../weather/domain/weather_describer.dart';
+import '../../weather/domain/weather_interpreter.dart';
+import '../../weather_core/domain/weather_models.dart';
 
 class WeatherSummaryGenerator {
   const WeatherSummaryGenerator();

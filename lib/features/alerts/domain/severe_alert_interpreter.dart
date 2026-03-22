@@ -2,7 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
-import 'weather_models.dart';
+import '../../weather_core/domain/weather_models.dart';
 
 class SevereAlertInterpreter {
   const SevereAlertInterpreter();

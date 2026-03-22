@@ -1,6 +1,6 @@
 import 'dart:math';
 
-import 'weather_models.dart';
+import '../../weather_core/domain/weather_models.dart';
 
 class CommuteWeatherService {
   const CommuteWeatherService();

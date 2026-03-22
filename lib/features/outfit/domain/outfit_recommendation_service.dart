@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'weather_models.dart';
+import '../../weather_core/domain/weather_models.dart';
 
 class OutfitRecommendationService {
   const OutfitRecommendationService();
