@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/widgets/app_surface_card.dart';
 import '../../../core/widgets/atmospheric_scaffold.dart';
 import '../../../core/widgets/weather_state_guard.dart';
-import '../../weather_core/presentation/weather_shared_sheets.dart';
+import 'activity_detail_sheet.dart';
 
 class ActivitiesPage extends StatelessWidget {
   const ActivitiesPage({super.key});

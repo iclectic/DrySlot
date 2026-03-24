@@ -2,9 +2,9 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/app_providers.dart';
-import '../data/weather_local_store.dart';
-import '../data/weather_provider_config.dart';
-import '../data/weather_repository.dart';
+import '../../weather_core/data/weather_local_store.dart';
+import '../../weather_core/data/weather_provider_config.dart';
+import '../../weather_core/data/weather_repository.dart';
 import '../domain/weather_advisor.dart';
 import '../domain/weather_models.dart';
 import '../domain/weather_repository.dart';

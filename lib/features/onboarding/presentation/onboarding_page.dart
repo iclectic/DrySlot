@@ -7,10 +7,10 @@ import '../../../core/routing/route_paths.dart';
 import '../../../core/services/device_location_service.dart';
 import '../../../core/services/notification_permission_service.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../locations/presentation/location_search_sheet.dart';
 import '../../weather_core/data/weather_repository.dart';
 import '../../weather_core/domain/weather_models.dart';
 import '../../weather_core/presentation/weather_dashboard_controller.dart';
-import '../../weather_core/presentation/weather_shared_sheets.dart';
 
 class OnboardingPage extends ConsumerStatefulWidget {
   const OnboardingPage({super.key});

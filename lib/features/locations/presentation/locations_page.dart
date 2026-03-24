@@ -4,10 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/services/device_location_service.dart';
 import '../../../core/widgets/app_surface_card.dart';
 import '../../../core/widgets/atmospheric_scaffold.dart';
+import 'location_search_sheet.dart';
 import '../../weather_core/data/weather_repository.dart';
 import '../../weather_core/domain/weather_models.dart';
 import '../../weather_core/presentation/weather_dashboard_controller.dart';
-import '../../weather_core/presentation/weather_shared_sheets.dart';
 
 class LocationsPage extends ConsumerWidget {
   const LocationsPage({super.key});
