@@ -11,10 +11,10 @@ import '../../activities/presentation/activity_detail_sheet.dart';
 import '../../locations/presentation/location_search_sheet.dart';
 import '../../routines/presentation/commute_windows_sheet.dart';
 import '../../settings/presentation/display_settings_sheet.dart';
+import '../../weather_core/domain/weather_describer.dart';
+import '../../weather_core/domain/weather_models.dart';
+import '../../weather_core/presentation/weather_dashboard_controller.dart';
 import '../../weather_core/data/weather_repository.dart';
-import '../domain/weather_describer.dart';
-import '../domain/weather_models.dart';
-import 'weather_dashboard_controller.dart';
 
 class WeatherDashboardPage extends ConsumerStatefulWidget {
   const WeatherDashboardPage({super.key});
@@ -2510,4 +2510,3 @@ class _GlowOrb extends StatelessWidget {
     );
   }
 }
-
