@@ -14,6 +14,8 @@ import '../../settings/presentation/display_settings_sheet.dart';
 import '../../weather_core/domain/weather_describer.dart';
 import '../../weather_core/domain/weather_models.dart';
 import '../../weather_core/presentation/weather_dashboard_controller.dart';
+import '../../sharing/presentation/share_button.dart';
+import '../../sharing/presentation/shareable_card.dart';
 import '../../weather_core/data/weather_repository.dart';
 
 class WeatherDashboardPage extends ConsumerStatefulWidget {
@@ -242,7 +244,7 @@ class _WeatherDashboardPageState extends ConsumerState<WeatherDashboardPage> {
                             explanationMode: state.explanationMode,
                           ),
                           const SizedBox(height: 16),
-                          _DryWindowCard(guidance: guidance),
+                          _DryWindowCard(guidance: guidance, locationName: report.location.name),
                           const SizedBox(height: 16),
                           _DailyGuidanceCard(
                             guidance: guidance,
@@ -256,12 +258,13 @@ class _WeatherDashboardPageState extends ConsumerState<WeatherDashboardPage> {
                           _CommuteCard(
                             guidance: guidance,
                             onManageWindows: _openCommuteWindowManager,
+                            locationName: report.location.name,
                           ),
                           const SizedBox(height: 16),
                           _WearCard(guidance: guidance),
                         ];
                         final rightColumn = <Widget>[
-                          _WeekendPlannerCard(guidance: guidance),
+                          _WeekendPlannerCard(guidance: guidance, locationName: report.location.name),
                           const SizedBox(height: 16),
                           _CompareCitiesCard(
                             primaryReport: report,
@@ -300,7 +303,7 @@ class _WeatherDashboardPageState extends ConsumerState<WeatherDashboardPage> {
                             explanationMode: state.explanationMode,
                           ),
                           const SizedBox(height: 16),
-                          _DryWindowCard(guidance: guidance),
+                          _DryWindowCard(guidance: guidance, locationName: report.location.name),
                           const SizedBox(height: 16),
                           _DailyGuidanceCard(
                             guidance: guidance,
@@ -314,11 +317,12 @@ class _WeatherDashboardPageState extends ConsumerState<WeatherDashboardPage> {
                           _CommuteCard(
                             guidance: guidance,
                             onManageWindows: _openCommuteWindowManager,
+                            locationName: report.location.name,
                           ),
                           const SizedBox(height: 16),
                           _WearCard(guidance: guidance),
                           const SizedBox(height: 16),
-                          _WeekendPlannerCard(guidance: guidance),
+                          _WeekendPlannerCard(guidance: guidance, locationName: report.location.name),
                           const SizedBox(height: 16),
                           _CompareCitiesCard(
                             primaryReport: report,
@@ -913,6 +917,8 @@ class _NextHourCard extends StatelessWidget {
   final WeatherGuidance guidance;
   final ExplanationMode explanationMode;
 
+  String get _locationName => report.location.name;
+
   @override
   Widget build(BuildContext context) {
     final slots = report.minutely.take(4).toList(growable: false);
@@ -926,10 +932,23 @@ class _NextHourCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          const _SectionHeader(
-            eyebrow: 'Next Hour Rain',
-            title: 'Can you head out now?',
-            icon: Icons.timeline_rounded,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              const Expanded(
+                child: _SectionHeader(
+                  eyebrow: 'Next Hour Rain',
+                  title: 'Can you head out now?',
+                  icon: Icons.timeline_rounded,
+                ),
+              ),
+              ShareCardButton(
+                variant: NextHourShareVariant(
+                  nextHour: guidance.nextHour,
+                  locationName: _locationName,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 10),
           Text(
@@ -1061,9 +1080,13 @@ class _NextHourCard extends StatelessWidget {
 }
 
 class _DryWindowCard extends StatelessWidget {
-  const _DryWindowCard({required this.guidance});
+  const _DryWindowCard({
+    required this.guidance,
+    required this.locationName,
+  });
 
   final WeatherGuidance guidance;
+  final String locationName;
 
   @override
   Widget build(BuildContext context) {
@@ -1072,10 +1095,23 @@ class _DryWindowCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          const _SectionHeader(
-            eyebrow: 'Best Dry Window',
-            title: 'When is the best time to head out?',
-            icon: Icons.wb_sunny_outlined,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              const Expanded(
+                child: _SectionHeader(
+                  eyebrow: 'Best Dry Window',
+                  title: 'When is the best time to head out?',
+                  icon: Icons.wb_sunny_outlined,
+                ),
+              ),
+              ShareCardButton(
+                variant: DryWindowShareVariant(
+                  dryWindow: guidance.dryWindow,
+                  locationName: locationName,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 14),
           Text(
@@ -1239,9 +1275,13 @@ class _DailyGuidanceCard extends StatelessWidget {
 }
 
 class _WeekendPlannerCard extends StatelessWidget {
-  const _WeekendPlannerCard({required this.guidance});
+  const _WeekendPlannerCard({
+    required this.guidance,
+    required this.locationName,
+  });
 
   final WeatherGuidance guidance;
+  final String locationName;
 
   @override
   Widget build(BuildContext context) {
@@ -1250,10 +1290,24 @@ class _WeekendPlannerCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          const _SectionHeader(
-            eyebrow: 'Weekend Planner',
-            title: 'Which weekend day looks better?',
-            icon: Icons.calendar_view_week_rounded,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              const Expanded(
+                child: _SectionHeader(
+                  eyebrow: 'Weekend Planner',
+                  title: 'Which weekend day looks better?',
+                  icon: Icons.calendar_view_week_rounded,
+                ),
+              ),
+              if (planner != null)
+                ShareCardButton(
+                  variant: WeekendShareVariant(
+                    planner: planner,
+                    locationName: locationName,
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: 18),
           if (planner == null) ...<Widget>[
@@ -1483,10 +1537,15 @@ class _CompareCitiesCard extends StatelessWidget {
 }
 
 class _CommuteCard extends StatelessWidget {
-  const _CommuteCard({required this.guidance, required this.onManageWindows});
+  const _CommuteCard({
+    required this.guidance,
+    required this.onManageWindows,
+    required this.locationName,
+  });
 
   final WeatherGuidance guidance;
   final VoidCallback onManageWindows;
+  final String locationName;
 
   @override
   Widget build(BuildContext context) {
@@ -1504,7 +1563,14 @@ class _CommuteCard extends StatelessWidget {
                   icon: Icons.commute_rounded,
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
+              ShareCardButton(
+                variant: CommuteShareVariant(
+                  commute: guidance.commute,
+                  locationName: locationName,
+                ),
+              ),
+              const SizedBox(width: 4),
               FilledButton.tonalIcon(
                 onPressed: onManageWindows,
                 icon: const Icon(Icons.edit_calendar_rounded),
