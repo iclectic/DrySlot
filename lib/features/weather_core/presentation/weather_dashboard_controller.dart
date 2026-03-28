@@ -2,6 +2,9 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/app_providers.dart';
+import '../../../core/services/local_notification_service.dart';
+import '../../../core/services/weather_notification_checker.dart';
+import '../../home_widget/data/home_widget_service.dart';
 import '../data/weather_local_store.dart';
 import '../data/weather_provider_config.dart';
 import '../data/weather_repository.dart';
@@ -264,6 +267,12 @@ class WeatherDashboardController extends Notifier<WeatherDashboardState> {
         isLoading: false,
         isRefreshing: false,
       );
+
+      // Evaluate proactive notification triggers in foreground.
+      _evaluateNotifications(weather, guidance);
+
+      // Sync data to native home-screen widget.
+      _syncHomeWidget(weather, guidance);
     } catch (_) {
       if (requestId != _requestSerial) {
         return;
@@ -294,6 +303,25 @@ class WeatherDashboardController extends Notifier<WeatherDashboardState> {
               explanationMode: state.explanationMode,
             ),
     );
+  }
+
+  void _syncHomeWidget(WeatherReport report, WeatherGuidance guidance) {
+    ref.read(homeWidgetServiceProvider).update(
+      report: report,
+      guidance: guidance,
+    );
+  }
+
+  void _evaluateNotifications(
+    WeatherReport report,
+    WeatherGuidance guidance,
+  ) {
+    final checker = WeatherNotificationChecker(
+      notificationService: ref.read(localNotificationServiceProvider),
+      preferences: ref.read(sharedPreferencesProvider),
+    );
+    // Fire-and-forget — don't block the UI on notification delivery.
+    checker.evaluate(report, guidance);
   }
 
   bool _sameLocation(WeatherLocation a, WeatherLocation b) {

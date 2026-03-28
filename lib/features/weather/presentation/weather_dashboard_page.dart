@@ -739,7 +739,13 @@ class _HeroCard extends StatelessWidget {
             ),
           ];
 
-    return GlassCard(
+    return Semantics(
+      container: true,
+      label: 'Weather summary. ${guidance.headline.title}. '
+          '${guidance.headline.detail}. '
+          '${formatTemperature(report.current.temperatureC)} in ${report.location.name}. '
+          '${guidance.nextHour.departureAdvice}.',
+      child: GlassCard(
       gradient: _glassGradient(context, prominent: true),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -869,6 +875,7 @@ class _HeroCard extends StatelessWidget {
           ),
         ],
       ),
+    ),
     );
   }
 }
@@ -933,7 +940,11 @@ class _NextHourCard extends StatelessWidget {
           value > slot.precipitationMm ? value : slot.precipitationMm,
     );
 
-    return GlassCard(
+    return Semantics(
+      container: true,
+      label: 'Next hour rain. ${guidance.nextHour.title}. ${guidance.nextHour.detail}. '
+          '${guidance.nextHour.departureAdvice}.',
+      child: GlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -1080,6 +1091,7 @@ class _NextHourCard extends StatelessWidget {
           ),
         ],
       ),
+    ),
     );
   }
 }
@@ -1096,60 +1108,64 @@ class _DryWindowCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final window = guidance.dryWindow;
-    return GlassCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              const Expanded(
-                child: _SectionHeader(
-                  eyebrow: 'Best Dry Window',
-                  title: 'When is the best time to head out?',
-                  icon: Icons.wb_sunny_outlined,
-                ),
-              ),
-              ShareCardButton(
-                variant: DryWindowShareVariant(
-                  dryWindow: guidance.dryWindow,
-                  locationName: locationName,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Text(
-            window.headline,
-            style: Theme.of(context).textTheme.headlineSmall,
-          ),
-          const SizedBox(height: 8),
-          if (window.isAvailable &&
-              window.start != null &&
-              window.end != null) ...<Widget>[
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
+    return Semantics(
+      container: true,
+      label: 'Best dry window. ${window.headline}. ${window.note}.',
+      child: GlassCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                _TonePill(
-                  tone: window.tone,
-                  label: formatDurationShort(window.duration),
+                const Expanded(
+                  child: _SectionHeader(
+                    eyebrow: 'Best Dry Window',
+                    title: 'When is the best time to head out?',
+                    icon: Icons.wb_sunny_outlined,
+                  ),
                 ),
-                _SoftChip(
-                  icon: Icons.verified_outlined,
-                  label: window.confidenceLabel,
+                ShareCardButton(
+                  variant: DryWindowShareVariant(
+                    dryWindow: guidance.dryWindow,
+                    locationName: locationName,
+                  ),
                 ),
               ],
             ),
-          ] else ...<Widget>[
+            const SizedBox(height: 14),
             Text(
-              'No reliable dry block stands out',
+              window.headline,
               style: Theme.of(context).textTheme.headlineSmall,
             ),
+            const SizedBox(height: 8),
+            if (window.isAvailable &&
+                window.start != null &&
+                window.end != null) ...<Widget>[
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: <Widget>[
+                  _TonePill(
+                    tone: window.tone,
+                    label: formatDurationShort(window.duration),
+                  ),
+                  _SoftChip(
+                    icon: Icons.verified_outlined,
+                    label: window.confidenceLabel,
+                  ),
+                ],
+              ),
+            ] else ...<Widget>[
+              Text(
+                'No reliable dry block stands out',
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+            ],
+            const SizedBox(height: 14),
+            Text(window.note, style: Theme.of(context).textTheme.bodyMedium),
           ],
-          const SizedBox(height: 14),
-          Text(window.note, style: Theme.of(context).textTheme.bodyMedium),
-        ],
+        ),
       ),
     );
   }
@@ -1291,50 +1307,55 @@ class _WeekendPlannerCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final planner = guidance.weekendPlanner;
-    return GlassCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              const Expanded(
-                child: _SectionHeader(
-                  eyebrow: 'Weekend Planner',
-                  title: 'Which weekend day looks better?',
-                  icon: Icons.calendar_view_week_rounded,
-                ),
-              ),
-              if (planner != null)
-                ShareCardButton(
-                  variant: WeekendShareVariant(
-                    planner: planner,
-                    locationName: locationName,
+    return Semantics(
+      container: true,
+      label: planner != null
+          ? 'Weekend planner. ${planner.title}. ${planner.summary}.'
+          : 'Weekend planner. Outlook unavailable.',
+      child: GlassCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                const Expanded(
+                  child: _SectionHeader(
+                    eyebrow: 'Weekend Planner',
+                    title: 'Which weekend day looks better?',
+                    icon: Icons.calendar_view_week_rounded,
                   ),
                 ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          if (planner == null) ...<Widget>[
-            Text(
-              'Weekend outlook unavailable',
-              style: Theme.of(context).textTheme.headlineSmall,
+                if (planner != null)
+                  ShareCardButton(
+                    variant: WeekendShareVariant(
+                      planner: planner,
+                      locationName: locationName,
+                    ),
+                  ),
+              ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Dry Slots needs a longer-range forecast before it can steer weekend plans.',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-          ] else ...<Widget>[
-            Text(
-              planner.title,
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              planner.summary,
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
+            const SizedBox(height: 18),
+            if (planner == null) ...<Widget>[
+              Text(
+                'Weekend outlook unavailable',
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Dry Slots needs a longer-range forecast before it can steer weekend plans.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ] else ...<Widget>[
+              Text(
+                planner.title,
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                planner.summary,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
             const SizedBox(height: 16),
             Wrap(
               spacing: 12,
@@ -1409,6 +1430,7 @@ class _WeekendPlannerCard extends StatelessWidget {
             ),
           ],
         ],
+        ),
       ),
     );
   }
@@ -1554,48 +1576,52 @@ class _CommuteCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GlassCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              const Expanded(
-                child: _SectionHeader(
-                  eyebrow: 'Favourite Routines',
-                  title: 'How do your routines look?',
-                  icon: Icons.commute_rounded,
+    return Semantics(
+      container: true,
+      label: 'Commute routines. ${guidance.commute.summary}.',
+      child: GlassCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                const Expanded(
+                  child: _SectionHeader(
+                    eyebrow: 'Favourite Routines',
+                    title: 'How do your routines look?',
+                    icon: Icons.commute_rounded,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              ShareCardButton(
-                variant: CommuteShareVariant(
-                  commute: guidance.commute,
-                  locationName: locationName,
+                const SizedBox(width: 8),
+                ShareCardButton(
+                  variant: CommuteShareVariant(
+                    commute: guidance.commute,
+                    locationName: locationName,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 4),
-              FilledButton.tonalIcon(
-                onPressed: onManageWindows,
-                icon: const Icon(Icons.edit_calendar_rounded),
-                label: const Text('Manage'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          Text(
-            guidance.commute.summary,
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 16),
-          ...guidance.commute.windows.map((leg) {
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _CommuteTile(leg: leg),
-            );
-          }),
-        ],
+                const SizedBox(width: 4),
+                FilledButton.tonalIcon(
+                  onPressed: onManageWindows,
+                  icon: const Icon(Icons.edit_calendar_rounded),
+                  label: const Text('Manage'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            Text(
+              guidance.commute.summary,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 16),
+            ...guidance.commute.windows.map((leg) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _CommuteTile(leg: leg),
+              );
+            }),
+          ],
+        ),
       ),
     );
   }
@@ -2479,7 +2505,7 @@ class _ErrorView extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
-                  const Icon(
+                  Icon(
                     Icons.cloud_off_rounded,
                     size: 44,
                     color: AppPalette.coral,

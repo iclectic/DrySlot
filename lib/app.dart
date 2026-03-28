@@ -18,6 +18,9 @@ class DrySlotsApp extends ConsumerWidget {
     final reduceMotion =
         accessibility.disableAnimations || accessibility.accessibleNavigation;
 
+    // Swap signal colours before building themes.
+    AppPalette.applyColorblindSafe(settings.colorblindSafe);
+
     return MaterialApp.router(
       title: 'Dry Slots',
       debugShowCheckedModeBanner: false,

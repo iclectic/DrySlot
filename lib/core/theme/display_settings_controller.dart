@@ -9,6 +9,7 @@ part 'display_settings_controller.freezed.dart';
 const _themeModeKey = 'dry_slots.display.theme_mode.v2';
 const _largeTextKey = 'dry_slots.display.large_text.v2';
 const _highContrastKey = 'dry_slots.display.high_contrast.v1';
+const _colorblindSafeKey = 'dry_slots.display.colorblind_safe.v1';
 
 final displaySettingsControllerProvider =
     NotifierProvider<DisplaySettingsController, DisplaySettingsState>(
@@ -23,6 +24,7 @@ abstract class DisplaySettingsState with _$DisplaySettingsState {
     required ThemeMode themeMode,
     required bool largeText,
     required bool highContrast,
+    required bool colorblindSafe,
   }) = _DisplaySettingsState;
 
   double get textScaleFactor => largeText ? 1.16 : 1.0;
@@ -39,10 +41,12 @@ class DisplaySettingsController extends Notifier<DisplaySettingsState> {
     );
     final largeText = preferences.getBool(_largeTextKey) ?? false;
     final highContrast = preferences.getBool(_highContrastKey) ?? false;
+    final colorblindSafe = preferences.getBool(_colorblindSafeKey) ?? false;
     return DisplaySettingsState(
       themeMode: themeMode,
       largeText: largeText,
       highContrast: highContrast,
+      colorblindSafe: colorblindSafe,
     );
   }
 
@@ -73,5 +77,16 @@ class DisplaySettingsController extends Notifier<DisplaySettingsState> {
 
     state = state.copyWith(highContrast: value);
     await ref.read(sharedPreferencesProvider).setBool(_highContrastKey, value);
+  }
+
+  Future<void> setColorblindSafe(bool value) async {
+    if (state.colorblindSafe == value) {
+      return;
+    }
+
+    state = state.copyWith(colorblindSafe: value);
+    await ref
+        .read(sharedPreferencesProvider)
+        .setBool(_colorblindSafeKey, value);
   }
 }

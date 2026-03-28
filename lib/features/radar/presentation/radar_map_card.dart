@@ -7,7 +7,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/formatters.dart';
 import '../../weather_core/domain/weather_models.dart';
-import '../data/rain_viewer_service.dart';
 import 'radar_controller.dart';
 
 /// A self-contained radar card that shows precipitation tiles from RainViewer
@@ -204,7 +203,7 @@ class _RadarViewport extends StatelessWidget {
                 child: Image.network(
                   url,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                  errorBuilder: (_, __, _e) => const SizedBox.shrink(),
                   loadingBuilder: (_, child, progress) {
                     if (progress == null) return child;
                     return Container(color: Colors.transparent);
@@ -247,7 +246,7 @@ class _RadarViewport extends StatelessWidget {
                       color: AppPalette.amber.withValues(alpha: 0.32),
                     ),
                   ),
-                  child: const Text(
+                  child: Text(
                     'Forecast',
                     style: TextStyle(
                       fontSize: 11,
@@ -473,7 +472,7 @@ class _ErrorPanel extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            const Icon(Icons.cloud_off_rounded, color: AppPalette.coral),
+            Icon(Icons.cloud_off_rounded, color: AppPalette.coral),
             const SizedBox(height: 10),
             Text(
               message,

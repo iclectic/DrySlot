@@ -10,14 +10,39 @@ sealed class AppPalette {
   static const ink = Color(0xFF123041);
   static const slate = Color(0xFF577181);
   static const sky = Color(0xFF7FC3EA);
-  static const teal = Color(0xFF69D4C4);
-  static const amber = Color(0xFFF2C77A);
-  static const coral = Color(0xFFF28A6D);
   static const mist = Color(0xFFF3F7FB);
   static const snow = Color(0xFFE8F1F8);
   static const muted = Color(0xFF9FB4C2);
   static const border = Color(0x33FFFFFF);
   static const glow = Color(0x14000000);
+
+  // Semantic signal colours — swapped when colorblind-safe mode is on.
+  static Color teal = const Color(0xFF69D4C4);
+  static Color amber = const Color(0xFFF2C77A);
+  static Color coral = const Color(0xFFF28A6D);
+
+  // Colorblind-safe alternatives (Okabe-Ito inspired).
+  static const _cbTeal = Color(0xFF0072B2);   // blue
+  static const _cbAmber = Color(0xFFE69F00);  // orange
+  static const _cbCoral = Color(0xFFCC79A7);  // reddish-purple
+
+  // Standard palette values.
+  static const _stdTeal = Color(0xFF69D4C4);
+  static const _stdAmber = Color(0xFFF2C77A);
+  static const _stdCoral = Color(0xFFF28A6D);
+
+  /// Call once at theme build time to swap the mutable signal colours.
+  static void applyColorblindSafe(bool enabled) {
+    if (enabled) {
+      teal = _cbTeal;
+      amber = _cbAmber;
+      coral = _cbCoral;
+    } else {
+      teal = _stdTeal;
+      amber = _stdAmber;
+      coral = _stdCoral;
+    }
+  }
 }
 
 final class AppTheme {

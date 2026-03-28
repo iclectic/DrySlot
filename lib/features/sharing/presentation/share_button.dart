@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 
 import '../../../core/services/share_card_service.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../weather_core/domain/weather_models.dart';
 import 'shareable_card.dart';
 
 /// A small share icon button that, when tapped, renders the associated

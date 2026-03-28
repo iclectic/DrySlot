@@ -3,11 +3,9 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:workmanager/workmanager.dart';
 
-import '../../features/weather_core/data/open_meteo_weather_data_provider.dart';
+import '../../features/weather_core/data/open_meteo_weather_repository.dart';
 import '../../features/weather_core/data/weather_local_store.dart';
-import '../../features/weather_core/data/weather_provider_config.dart';
 import '../../features/weather_core/domain/weather_advisor.dart';
-import '../../features/weather_core/domain/weather_models.dart';
 import 'local_notification_service.dart';
 import 'weather_notification_checker.dart';
 
@@ -30,8 +28,7 @@ void backgroundWeatherCallbackDispatcher() {
       // Bootstrap minimal dependencies.
       final preferences = await SharedPreferences.getInstance();
       await Hive.initFlutter();
-      final box =
-          await Hive.openBox<String>(WeatherLocalStore.boxName);
+      final box = await Hive.openBox<String>(WeatherLocalStore.boxName);
       final store = WeatherLocalStore(box);
 
       final savedLocation = store.getSelectedLocation();
@@ -44,8 +41,11 @@ void backgroundWeatherCallbackDispatcher() {
         connectTimeout: const Duration(seconds: 10),
         receiveTimeout: const Duration(seconds: 10),
       ));
-      final provider = OpenMeteoWeatherDataProvider(dio: dio);
-      final report = await provider.fetchWeather(savedLocation);
+      final repository = OpenMeteoWeatherRepository(
+        dio: dio,
+        localStore: store,
+      );
+      final report = await repository.fetchWeather(savedLocation);
 
       // Build guidance.
       final commuteWindows = store.getCommuteWindows();
@@ -63,9 +63,6 @@ void backgroundWeatherCallbackDispatcher() {
         preferences: preferences,
       );
       await checker.evaluate(report, guidance);
-
-      // Cache the fresh report so the UI has it when opened.
-      await store.cacheReport(report, provider: WeatherDataProvider.openMeteo);
 
       dio.close();
     } catch (_) {

@@ -194,7 +194,7 @@ class _LocationSearchSheetState extends State<LocationSearchSheet> {
                                 ),
                               ),
                               if (selected)
-                                const Icon(
+                                Icon(
                                   Icons.check_circle_rounded,
                                   color: AppPalette.teal,
                                 ),

@@ -141,6 +141,21 @@ class DisplaySettingsSheet extends ConsumerWidget {
                 );
               },
             ),
+            const SizedBox(height: 12),
+            _SettingsSwitchTile(
+              icon: Icons.palette_outlined,
+              title: 'Colorblind-safe palette',
+              detail:
+                  'Replaces the go / watch / wait signal colours with an Okabe-Ito palette optimised for deuteranopia and protanopia.',
+              value: settings.colorblindSafe,
+              onChanged: (value) {
+                unawaited(
+                  ref
+                      .read(displaySettingsControllerProvider.notifier)
+                      .setColorblindSafe(value),
+                );
+              },
+            ),
             const SizedBox(height: 18),
             Text('Privacy', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 10),

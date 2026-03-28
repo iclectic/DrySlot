@@ -45,11 +45,9 @@ class ShareCardService {
     final file = File('${tempDir.path}/dry_slots_share_$timestamp.png');
     await file.writeAsBytes(pngBytes);
 
-    await SharePlus.instance.share(
-      ShareParams(
-        text: text,
-        files: [XFile(file.path, mimeType: 'image/png')],
-      ),
+    await Share.shareXFiles(
+      [XFile(file.path, mimeType: 'image/png')],
+      text: text,
     );
   }
 }
