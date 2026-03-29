@@ -11,7 +11,6 @@ import '../../weather_core/domain/weather_models.dart';
 class HomeWidgetService {
   const HomeWidgetService();
 
-  static const _appGroupId = 'group.app.dryslots.widget';
   static const _androidWidgetName = 'DrySlotsWidgetProvider';
   static const _iOSWidgetName = 'DrySlotsWidget';
 

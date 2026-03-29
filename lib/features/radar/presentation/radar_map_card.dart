@@ -203,7 +203,7 @@ class _RadarViewport extends StatelessWidget {
                 child: Image.network(
                   url,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, _e) => const SizedBox.shrink(),
+                  errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
                   loadingBuilder: (_, child, progress) {
                     if (progress == null) return child;
                     return Container(color: Colors.transparent);
