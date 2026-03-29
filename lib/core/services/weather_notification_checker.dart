@@ -2,6 +2,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../features/weather_core/domain/weather_models.dart';
 import 'local_notification_service.dart';
+import 'notification_preferences_controller.dart';
 
 /// Evaluates a [WeatherReport] and [WeatherGuidance] and fires local
 /// notifications when conditions warrant a proactive alert.
@@ -11,10 +12,12 @@ class WeatherNotificationChecker {
   const WeatherNotificationChecker({
     required this.notificationService,
     required this.preferences,
+    required this.notificationPreferences,
   });
 
   final LocalNotificationService notificationService;
   final SharedPreferences preferences;
+  final NotificationPreferences notificationPreferences;
 
   static const _rainCooldownKey = 'dry_slots.notif.rain_cooldown';
   static const _commuteCooldownKey = 'dry_slots.notif.commute_cooldown';
@@ -27,9 +30,18 @@ class WeatherNotificationChecker {
     WeatherReport report,
     WeatherGuidance guidance,
   ) async {
-    await _checkRainApproaching(report, guidance);
-    await _checkCommuteWarning(guidance);
-    await _checkDryWindowOpening(guidance);
+    // Respect quiet hours — suppress all alerts.
+    if (notificationPreferences.isInQuietHours) return;
+
+    if (notificationPreferences.rainAlerts) {
+      await _checkRainApproaching(report, guidance);
+    }
+    if (notificationPreferences.commuteWarnings) {
+      await _checkCommuteWarning(guidance);
+    }
+    if (notificationPreferences.dryWindowAlerts) {
+      await _checkDryWindowOpening(guidance);
+    }
   }
 
   // ---------------------------------------------------------------------------

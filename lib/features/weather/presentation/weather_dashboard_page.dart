@@ -15,6 +15,7 @@ import '../../weather_core/domain/weather_describer.dart';
 import '../../weather_core/domain/weather_models.dart';
 import '../../weather_core/presentation/weather_dashboard_controller.dart';
 import '../../radar/presentation/radar_map_card.dart';
+import '../../../core/widgets/offline_banner.dart';
 import '../../sharing/presentation/share_button.dart';
 import '../../sharing/presentation/shareable_card.dart';
 import '../../weather_core/data/weather_repository.dart';
@@ -223,6 +224,8 @@ class _WeatherDashboardPageState extends ConsumerState<WeatherDashboardPage> {
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
                   children: <Widget>[
+                    const OfflineBanner(),
+                    const SizedBox(height: 8),
                     _HeroCard(
                       report: report,
                       guidance: guidance,

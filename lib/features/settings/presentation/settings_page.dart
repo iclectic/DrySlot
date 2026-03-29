@@ -6,6 +6,7 @@ import '../../../core/analytics/analytics_settings_controller.dart';
 import '../../../core/preferences/app_preferences_controller.dart';
 import '../../../core/routing/route_paths.dart';
 import '../../../core/services/notification_permission_service.dart';
+import '../../../core/services/notification_preferences_controller.dart';
 import '../../../core/theme/display_settings_controller.dart';
 import '../../../core/widgets/app_surface_card.dart';
 import '../../../core/widgets/atmospheric_scaffold.dart';
@@ -95,52 +96,7 @@ class SettingsPage extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 16),
-          AppSurfaceCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text('Alerts', style: Theme.of(context).textTheme.titleLarge),
-                const SizedBox(height: 10),
-                SwitchListTile.adaptive(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Weather notifications'),
-                  subtitle: const Text(
-                    'Morning briefings, routine nudges, and severe-weather prompts when those surfaces are enabled.',
-                  ),
-                  value: preferences.notificationsEnabled,
-                  onChanged: (value) async {
-                    if (!value) {
-                      await ref
-                          .read(appPreferencesControllerProvider.notifier)
-                          .setNotificationsEnabled(false);
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Weather notifications are off for now.',
-                            ),
-                          ),
-                        );
-                      }
-                      return;
-                    }
-
-                    final result = await ref
-                        .read(notificationPermissionServiceProvider)
-                        .requestPermission();
-                    await ref
-                        .read(appPreferencesControllerProvider.notifier)
-                        .setNotificationsEnabled(result.isGranted);
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(
-                        context,
-                      ).showSnackBar(SnackBar(content: Text(result.message)));
-                    }
-                  },
-                ),
-              ],
-            ),
-          ),
+          _AlertsSettingsCard(preferences: preferences),
           const SizedBox(height: 16),
           AppSurfaceCard(
             onTap: () => context.push(RoutePaths.locations),
@@ -292,6 +248,157 @@ class SettingsPage extends ConsumerWidget {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AlertsSettingsCard extends ConsumerWidget {
+  const _AlertsSettingsCard({required this.preferences});
+
+  final AppPreferencesState preferences;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final notifPrefs = ref.watch(notificationPreferencesProvider);
+    final notifCtrl = ref.read(notificationPreferencesProvider.notifier);
+
+    String formatTime(TimeOfDay t) =>
+        '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+
+    return AppSurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text('Alerts', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 10),
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Weather notifications'),
+            subtitle: const Text(
+              'Master toggle for all proactive weather alerts.',
+            ),
+            value: preferences.notificationsEnabled,
+            onChanged: (value) async {
+              if (!value) {
+                await ref
+                    .read(appPreferencesControllerProvider.notifier)
+                    .setNotificationsEnabled(false);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Weather notifications are off for now.'),
+                    ),
+                  );
+                }
+                return;
+              }
+
+              final result = await ref
+                  .read(notificationPermissionServiceProvider)
+                  .requestPermission();
+              await ref
+                  .read(appPreferencesControllerProvider.notifier)
+                  .setNotificationsEnabled(result.isGranted);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(result.message)),
+                );
+              }
+            },
+          ),
+          if (preferences.notificationsEnabled) ...<Widget>[
+            const Divider(height: 24),
+            Text(
+              'Alert types',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 4),
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Rain approaching'),
+              subtitle: const Text(
+                'Heads-up when rain is expected within 15 minutes.',
+              ),
+              value: notifPrefs.rainAlerts,
+              onChanged: (v) => notifCtrl.setRainAlerts(v),
+            ),
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Commute warnings'),
+              subtitle: const Text(
+                'Alert when a saved commute window has a poor forecast.',
+              ),
+              value: notifPrefs.commuteWarnings,
+              onChanged: (v) => notifCtrl.setCommuteWarnings(v),
+            ),
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Dry window opening'),
+              subtitle: const Text(
+                'Nudge when a worthwhile dry stretch is about to start.',
+              ),
+              value: notifPrefs.dryWindowAlerts,
+              onChanged: (v) => notifCtrl.setDryWindowAlerts(v),
+            ),
+            const Divider(height: 24),
+            Text(
+              'Quiet hours',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 4),
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Enable quiet hours'),
+              subtitle: Text(
+                notifPrefs.quietHoursEnabled
+                    ? 'No alerts between ${formatTime(notifPrefs.quietStart)} and ${formatTime(notifPrefs.quietEnd)}.'
+                    : 'Alerts can arrive at any time.',
+              ),
+              value: notifPrefs.quietHoursEnabled,
+              onChanged: (v) => notifCtrl.setQuietHoursEnabled(v),
+            ),
+            if (notifPrefs.quietHoursEnabled)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () async {
+                          final picked = await showTimePicker(
+                            context: context,
+                            initialTime: notifPrefs.quietStart,
+                            helpText: 'Quiet hours start',
+                          );
+                          if (picked != null) {
+                            await notifCtrl.setQuietStart(picked);
+                          }
+                        },
+                        child: Text('Start: ${formatTime(notifPrefs.quietStart)}'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () async {
+                          final picked = await showTimePicker(
+                            context: context,
+                            initialTime: notifPrefs.quietEnd,
+                            helpText: 'Quiet hours end',
+                          );
+                          if (picked != null) {
+                            await notifCtrl.setQuietEnd(picked);
+                          }
+                        },
+                        child: Text('End: ${formatTime(notifPrefs.quietEnd)}'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
         ],
       ),
     );

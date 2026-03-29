@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/app_providers.dart';
 import '../../../core/services/local_notification_service.dart';
+import '../../../core/services/notification_preferences_controller.dart';
 import '../../../core/services/weather_notification_checker.dart';
 import '../../home_widget/data/home_widget_service.dart';
 import '../data/weather_local_store.dart';
@@ -319,6 +320,7 @@ class WeatherDashboardController extends Notifier<WeatherDashboardState> {
     final checker = WeatherNotificationChecker(
       notificationService: ref.read(localNotificationServiceProvider),
       preferences: ref.read(sharedPreferencesProvider),
+      notificationPreferences: ref.read(notificationPreferencesProvider),
     );
     // Fire-and-forget — don't block the UI on notification delivery.
     checker.evaluate(report, guidance);
