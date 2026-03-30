@@ -1,6 +1,7 @@
 import 'package:dry_slots/core/services/notification_preferences_controller.dart';
 import 'package:dry_slots/core/services/weather_notification_checker.dart';
 import 'package:dry_slots/core/services/local_notification_service.dart';
+import 'package:dry_slots/features/weather_core/domain/weather_advisor.dart';
 import 'package:dry_slots/features/weather_core/domain/weather_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
