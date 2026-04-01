@@ -7,6 +7,7 @@ import 'package:workmanager/workmanager.dart';
 import '../../features/weather_core/data/open_meteo_weather_repository.dart';
 import '../../features/weather_core/data/weather_local_store.dart';
 import '../../features/weather_core/domain/weather_advisor.dart';
+import 'crash_reporting_service.dart';
 import 'local_notification_service.dart';
 import 'notification_preferences_controller.dart';
 import 'weather_notification_checker.dart';
@@ -75,8 +76,9 @@ void backgroundWeatherCallbackDispatcher() {
       await checker.evaluate(report, guidance);
 
       dio.close();
-    } catch (_) {
-      // Swallow errors in background — notifications are best-effort.
+    } catch (error, stackTrace) {
+      // Notifications are best-effort; forward to Sentry if available.
+      await reportError(error, stackTrace: stackTrace, hint: 'background_weather_worker');
     }
 
     return true;

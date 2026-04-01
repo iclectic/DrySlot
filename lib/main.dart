@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'app.dart';
 import 'core/providers/app_providers.dart';
 import 'core/services/background_weather_worker.dart';
+import 'core/services/crash_reporting_service.dart';
 import 'core/services/local_notification_service.dart';
 import 'features/weather_core/data/weather_local_store.dart';
 
@@ -20,15 +21,18 @@ Future<void> main() async {
   await notificationService.initialize();
   await registerBackgroundWeatherWorker();
 
-  runApp(
-    ProviderScope(
-      overrides: <Override>[
-        sharedPreferencesProvider.overrideWithValue(preferences),
-        weatherStorageBoxProvider.overrideWithValue(weatherBox),
-        localNotificationServiceProvider
-            .overrideWithValue(notificationService),
-      ],
-      child: const DrySlotsApp(),
+  // Wrap the app in Sentry's error zone (no-ops if SENTRY_DSN is not set).
+  await initCrashReporting(
+    appRunner: () => runApp(
+      ProviderScope(
+        overrides: <Override>[
+          sharedPreferencesProvider.overrideWithValue(preferences),
+          weatherStorageBoxProvider.overrideWithValue(weatherBox),
+          localNotificationServiceProvider
+              .overrideWithValue(notificationService),
+        ],
+        child: const DrySlotsApp(),
+      ),
     ),
   );
 }
