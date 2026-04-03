@@ -13,4 +13,5 @@ abstract final class RoutePaths {
   static const locations = '/locations';
   static const settings = '/settings';
   static const widgetPreview = '/settings/widgets';
+  static const privacyPolicy = '/settings/privacy';
 }
