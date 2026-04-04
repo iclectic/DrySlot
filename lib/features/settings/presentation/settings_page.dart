@@ -245,6 +245,12 @@ class SettingsPage extends ConsumerWidget {
                   'Dry Slots is built for practical UK weather decisions: timing, routines, dry windows, and plain-English guidance.',
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
+                const SizedBox(height: 12),
+                TextButton.icon(
+                  onPressed: () => context.push(RoutePaths.privacyPolicy),
+                  icon: const Icon(Icons.privacy_tip_outlined, size: 18),
+                  label: const Text('Privacy policy'),
+                ),
               ],
             ),
           ),

@@ -69,8 +69,8 @@ void backgroundWeatherCallbackDispatcher() {
           commuteWarnings: preferences.getBool('dry_slots.notif_pref.commute_warnings.v1') ?? true,
           dryWindowAlerts: preferences.getBool('dry_slots.notif_pref.dry_window_alerts.v1') ?? true,
           quietHoursEnabled: preferences.getBool('dry_slots.notif_pref.quiet_enabled.v1') ?? false,
-          quietStart: const TimeOfDay(hour: 22, minute: 0),
-          quietEnd: const TimeOfDay(hour: 7, minute: 0),
+          quietStart: _parseTime(preferences.getString('dry_slots.notif_pref.quiet_start.v1'), const TimeOfDay(hour: 22, minute: 0)),
+          quietEnd: _parseTime(preferences.getString('dry_slots.notif_pref.quiet_end.v1'), const TimeOfDay(hour: 7, minute: 0)),
         ),
       );
       await checker.evaluate(report, guidance);
@@ -83,6 +83,17 @@ void backgroundWeatherCallbackDispatcher() {
 
     return true;
   });
+}
+
+/// Parse a "HH:mm" string into a [TimeOfDay], returning [fallback] on failure.
+TimeOfDay _parseTime(String? raw, TimeOfDay fallback) {
+  if (raw == null) return fallback;
+  final parts = raw.split(':');
+  if (parts.length != 2) return fallback;
+  return TimeOfDay(
+    hour: int.tryParse(parts[0]) ?? fallback.hour,
+    minute: int.tryParse(parts[1]) ?? fallback.minute,
+  );
 }
 
 /// Registers the periodic background weather check with Workmanager.

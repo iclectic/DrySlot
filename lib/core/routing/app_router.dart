@@ -15,6 +15,7 @@ import '../../features/planner/presentation/planner_page.dart';
 import '../../features/routines/presentation/routines_page.dart';
 import '../../features/settings/presentation/settings_page.dart';
 import '../../features/weather_home/presentation/home_page.dart';
+import '../../features/settings/presentation/privacy_policy_page.dart';
 import '../../features/widgets_preview/presentation/widget_preview_page.dart';
 import 'route_paths.dart';
 
@@ -88,6 +89,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: RoutePaths.widgetPreview,
         builder: (context, state) =>
             const AppShellPage(currentIndex: 3, child: WidgetPreviewPage()),
+      ),
+      GoRoute(
+        path: RoutePaths.privacyPolicy,
+        builder: (context, state) =>
+            const AppShellPage(currentIndex: 3, child: PrivacyPolicyPage()),
       ),
     ],
   );
