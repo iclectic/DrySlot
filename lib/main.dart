@@ -8,10 +8,12 @@ import 'core/providers/app_providers.dart';
 import 'core/services/background_weather_worker.dart';
 import 'core/services/crash_reporting_service.dart';
 import 'core/services/local_notification_service.dart';
+import 'core/widgets/app_error_boundary.dart';
 import 'features/weather_core/data/weather_local_store.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  installErrorBoundary();
   final preferences = await SharedPreferences.getInstance();
   await Hive.initFlutter();
   final weatherBox = await Hive.openBox<String>(WeatherLocalStore.boxName);

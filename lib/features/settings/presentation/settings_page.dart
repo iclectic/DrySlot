@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../core/analytics/analytics_settings_controller.dart';
 import '../../../core/preferences/app_preferences_controller.dart';
@@ -250,6 +251,20 @@ class SettingsPage extends ConsumerWidget {
                   onPressed: () => context.push(RoutePaths.privacyPolicy),
                   icon: const Icon(Icons.privacy_tip_outlined, size: 18),
                   label: const Text('Privacy policy'),
+                ),
+                const SizedBox(height: 4),
+                FutureBuilder<PackageInfo>(
+                  future: PackageInfo.fromPlatform(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) return const SizedBox.shrink();
+                    final info = snapshot.data!;
+                    return Text(
+                      'Version ${info.version} (${info.buildNumber})',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.outline,
+                          ),
+                    );
+                  },
                 ),
               ],
             ),
