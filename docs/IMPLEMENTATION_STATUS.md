@@ -2,7 +2,7 @@
 
 As of 29 October 2026. Baseline commit: [`3baf32c`](https://github.com/iclectic/DrySlot/commit/3baf32cc909c3fdffd44a72f917701941faeb832). Branch: `audit/phase-0-production-readiness`.
 
-**Phase 0 deliverables are prepared and awaiting review. Phases 1–14 are not started by this work.** Existing code is described below without treating it as verified delivery of the roadmap. The owner subsequently authorised committing and pushing these documents on the audit branch; this does not approve Phase 1. No PR, application release or provider purchase was made.
+Phase 0 was reviewed and the owner authorised Phase 1. DS-001 is in progress, as recorded below. The baseline descriptions remain historical and do not imply completion of later roadmap phases. No PR, application release or provider purchase was made.
 
 ## Phase 0 checklist
 
@@ -13,8 +13,8 @@ As of 29 October 2026. Baseline commit: [`3baf32c`](https://github.com/iclectic/
 - [x] Document current architecture, valuable code/features, risks and commercial/store release gates.
 - [x] Create numbered implementation backlog, roadmap, engineering record and proposed ADR.
 - [x] Preserve logs/resolved dependency/migration evidence and restore tool-generated changes to tracked application/configuration files.
-- [ ] Owner review of Phase 0 findings and proposed priorities.
-- [ ] Approval to begin Phase 1.
+- [x] Owner review of Phase 0 findings and proposed priorities.
+- [x] Approval to begin Phase 1.
 
 ## Baseline checks
 
@@ -55,3 +55,26 @@ See [baseline verification](audit/BASELINE_VERIFICATION.md) for exact commands, 
 Commercial provider/plan approval; warning/radar redistribution rights; account/team/identifier ownership and any existing listings; chosen OS support floor; signing credentials and compliant Apple toolchain; hosted privacy/support URLs; device acceptance; a complete SDK/license/security review; user research and measured product outcomes.
 
 No performance improvement, forecast calibration, user adoption or store acceptance has been measured or claimed. The [risk register](audit/RISK_REGISTER.md) remains entirely open. Future task status should link an actual commit/PR and executed acceptance evidence before being marked complete.
+# DS-001 progress — native build compatibility (in progress)
+
+On branch `fix/ds-001-native-builds`, Android notification desugaring is enabled, Sentry Flutter is updated to 9.30.1, Workmanager to 0.6.0, and the Dart lockfile is refreshed. Flutter 3.47.8 generated Android compatibility flags and migrated the iOS project to iOS 15 and Swift Package Manager. These changes are not yet a completed release package.
+
+On the current machine, `flutter pub get --enforce-lockfile`, `flutter analyze --no-pub`, and `flutter test --no-pub --reporter expanded` succeeded (29 tests); the Android debug APK and unsigned iOS release app built. The iOS result includes the tool-generated migration and does not establish signing, installation, notification delivery, or reproducibility on a clean machine. Flutter warns that several iOS plugins lack Swift Package Manager support.
+
+`flutter build appbundle --release --no-pub` failed on a stale generated plugin registrant. A subsequent `flutter build appbundle --release` regenerated it but failed at R8 on missing Play Core split-install classes. Removing the app's blanket Flutter engine keep rule allowed the same release build to succeed with shrinking enabled. An isolated source snapshot (baseline archive plus the current uncommitted diff and Swift lockfiles) also passed locked pub resolution, `flutter build appbundle --release`, and `flutter build ios --release --no-codesign --no-pub` using the same machine and caches. This is not an independent-machine test. The bundle uses the debug signing key and is not distributable. No quality gate was disabled. Formal toolchain pinning and device testing remain outstanding. `flutter devices` listed no mobile devices; an Android emulator launch returned but no device appeared in ADB. The baseline audit remains a historical snapshot.
+
+## Verification before the DS-001 commit and push
+
+The following commands were rerun on 29 October 2026 against the changes being committed:
+
+| Command | Actual result |
+| --- | --- |
+| `flutter pub get --enforce-lockfile` | Exit 0; committed dependency versions resolved |
+| `flutter analyze --no-pub` | Exit 0; no issues |
+| `flutter test --no-pub --reporter expanded` | Exit 0; all 29 tests passed |
+| `flutter build apk --debug --no-pub` | Exit 0; debug APK built |
+| `flutter build appbundle --release --no-pub` after the debug build | Exit 1; stale generated registrant referenced the development-only splash plugin |
+| `flutter build appbundle --release` | Exit 0; regenerated release registrant and built AAB |
+| `flutter build ios --release --no-codesign --no-pub` | Exit 0; unsigned device release built |
+
+Flutter's automatic analyzer exclusions were restored after dependency/build commands; analyzer settings were not weakened. The standard Android release command is currently required when switching from debug to release. Gradle/AGP/Kotlin support warnings and iOS plugin Swift Package Manager warnings remain. These local compilation checks do not establish device behavior, store-compatible tooling or distributable signing. The Android bundle still uses debug signing, and the iOS build is unsigned. The owner authorised committing and pushing this package; that does not mark DS-001 or Phase 1 complete.
