@@ -1,0 +1,36 @@
+[✓] Flutter (Channel stable, 3.47.8, on macOS 26.3 25D125 darwin-arm64, locale en-GB) [288ms]
+    • Flutter version 3.47.8 on channel stable at /opt/homebrew/share/flutter
+    • Upstream repository https://github.com/flutter/flutter.git
+    • Framework revision 737ba8f885 (6 days ago), 2026-10-22 21:37:31 -0700
+    • Engine revision cf636b1dfb
+    • Dart version 3.13.7
+    • DevTools version 2.60.0
+    • Feature flags: enable-web, enable-linux-desktop, enable-macos-desktop, enable-windows-desktop, enable-android, enable-ios, cli-animations, enable-native-assets, enable-record-use, enable-swift-package-manager, omit-legacy-version-file, enable-lldb-debugging, enable-uiscene-migration
+
+[!] Android toolchain - develop for Android devices (Android SDK version 36.0.0) [1,404ms]
+    • Android SDK at <user>/Library/Android/sdk
+    • Emulator version 35.6.11.0 (build_id 13610412) (CL:N/A)
+    • Platform android-36, build-tools 36.0.0
+    • ANDROID_HOME = <user>/Library/Android/sdk
+    • Java binary at: /Applications/Android Studio.app/Contents/jbr/Contents/Home/bin/java
+      This is the JDK bundled with the latest Android Studio installation on this machine.
+      To manually set the JDK path, use: `flutter config --jdk-dir="path/to/jdk"`.
+    • Java version OpenJDK Runtime Environment (build 21.0.6+-13391695-b895.109)
+    ! Some Android licenses not accepted. To resolve this, run: flutter doctor --android-licenses
+
+[✓] Xcode - develop for iOS and macOS (Xcode 16.4) [1,424ms]
+    • Xcode at /Applications/Xcode.app/Contents/Developer
+    • Build 16F6
+    • CocoaPods version 1.16.2
+
+[✓] Chrome - develop for the web [3ms]
+    • Chrome at /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+
+[✓] Connected device (2 available) [6.0s]
+    • macOS (desktop) • macos  • darwin-arm64   • macOS 26.3 25D125 darwin-arm64
+    • Chrome (web)    • chrome • web-javascript • Google Chrome 156.0.8078.48
+
+[✓] Network resources [517ms]
+    • All expected network resources are available.
+
+! Doctor found issues in 1 category.

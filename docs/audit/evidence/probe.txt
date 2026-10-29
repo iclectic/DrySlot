@@ -1,0 +1,12 @@
+00:00 +0: loading /private/tmp/dryslot_phase0_probe_test.dart
+00:00 +0: record current Phase 0 failure scenarios
+ALL_WET: available=true, headline=Short dry slot: 08:00 to 09:00
+GAP: 2 supported hours separated by 3 missing hours become 5h
+PAST: start=2026-10-29 08:00:00.000, accepts elapsed fixture without evaluation time
+CONFIDENCE: low precipitation probability produces High confidence
+COLD_OFFLINE: source=Demo forecast, fallback=true
+STALE_CACHE: fetchedAt=2020-01-01 00:00:00.000, source=Saved forecast
+EMPTY_PAYLOAD: source=Live weather by Open-Meteo, fallback=false, maxTempC=12.0, rainChance=0
+MASTER_OFF: notification calls=1
+Probe temporary data retained at /var/folders/mf/y1184szn7q30jkx4xywg3pyc0000gn/T/dryslot-phase0-probe-XNKVJR
+00:00 +1: All tests passed!

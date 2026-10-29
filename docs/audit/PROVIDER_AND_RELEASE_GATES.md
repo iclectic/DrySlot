@@ -1,0 +1,39 @@
+# Provider and release gates
+
+Checked 29 October 2026 against public primary sources. These checks identify engineering release gates; they do not establish the application's account entitlements, contract approval or legal clearance. Recheck terms and store requirements when preparing a release. No purchases, account changes or submissions were made.
+
+## Data-provider approval register
+
+| Service / code usage | Current source finding | Release evidence still required |
+| --- | --- | --- |
+| Open-Meteo forecast and geocoding; public endpoints, default provider, missing-key fallback and background worker | The public free service restricts use to non-commercial purposes and references CC BY 4.0. Commercial subscriptions use a customer endpoint and API key. [Terms](https://open-meteo.com/en/terms), [commercial access](https://open-meteo.com/en/pricing). | Owner-approved commercial entitlement and endpoint/key design, forecast/geocoding scope, attribution and storage/distribution terms. A data license does not by itself grant use of the hosted free service for a commercial product. **Open gate.** |
+| WeatherAPI; build-time key, seven-day request, hourly-to-quarter-hour derived output | API terms permit commercial mobile use subject to conditions, require free-tier credit, restrict client key exposure and specify cache limits: current data 60 minutes, forecast 24 hours. End-user disclosure obligations also apply. Plan capabilities vary; free forecast horizon is three days. [API terms](https://www.weatherapi.com/terms), [plan capabilities](https://www.weatherapi.com/pricing). | Approved plan and key protection; requested horizon/capability agreement; bounded cache/retention and required attribution/disclosure. Existing indefinite report retention cannot establish compliance. **Open gate.** |
+| OpenWeather One Call 3.0 and direct geocoding; compile-time key | One Call 3.0 has its own subscription setup; endpoint docs specify UTC timestamps and minutely precipitation as mm/h. [Endpoint contract](https://openweathermap.org/api/one-call-3), [plans](https://openweathermap.org/price). | Account entitlement for exact endpoints; signed-off commercial, attribution, caching and redistribution terms; key/quota controls. Do not infer entitlement from merely having an API key. **Open gate.** |
+| RainViewer; radar metadata and tiles in currently unrouted legacy UI | Public API terms target personal/educational/community use, require visible attribution/link and direct commercial integrations to seek terms. Current Weather Maps documentation describes past radar frames. [API terms](https://www.rainviewer.com/api.html), [maps contract](https://www.rainviewer.com/api/weather-maps-api.html). | Commercial approval or an approved alternative/deferral, attribution, capabilities and empty-frame handling. Do not promise nowcast because old parsing supports it. **Open gate before reconnecting radar commercially.** |
+| Met Office UK RSS warnings | Code reads a public national RSS URL and applies keyword matching. A public URL does not establish redistribution or branding rights. The attempted public legal-page fetch was inaccessible during this audit. | Authoritative usage/attribution and feed-support confirmation; valid-time/area contract and permitted presentation. Rights were **not verified**. |
+| OS geocoding, Sentry and bundled dependencies/assets | OS reverse geocoding and optional crash SDK exist. No complete SDK/data-license inventory or final archive review exists. | SDK privacy/licensing inventory, actual payload redaction, notices, retention and asset provenance. Repository lacks a tracked license; the owner must decide source licensing rather than assume public means unrestricted. |
+
+Store compliance and provider rights are independent. A provider not selected for release can remain development-only only if production selection/fallback/background paths cannot silently activate it. If an approved provider requires protected credentials, assess provider-supported restrictions first; consider a small gateway only when the contract or threat model requires it. Compile-time Dart defines are extractable client configuration, not secret storage.
+
+## Forecast-contract checks
+
+Provider timestamps require measurement-specific semantics. Open-Meteo documents hourly precipitation/probability for the **preceding hour**, and short-range precipitation for the **preceding 15 minutes**; some short-range values are interpolated depending on variable/region. The current calculator treats an hourly timestamp as the start of a forward hour and adds an hour at the end. Normalization must resolve this before duration calculations. [Open-Meteo parameter definitions](https://open-meteo.com/en/docs).
+
+OpenWeather's minutely values are rates, whereas the application model stores millimetres without interval metadata. Its current quarter-hour averaging/multiplication needs fixture tests for complete and partial buckets. WeatherAPI's hourly subdivision must be marked derived rather than used to claim precise rain onset. Shared units alone do not make providers temporally interchangeable.
+
+## Platform gates
+
+| Gate | Audit finding | Completion evidence |
+| --- | --- | --- |
+| Android buildability | Debug desugaring and release Sentry Kotlin failures | Clean APK and AAB builds using recorded supported SDKs; device launch and plugin smoke tests |
+| Android signing | Release currently uses debug keys; README keystore file is not read | Fail-closed configuration, secure upload-key ownership and certificate validation; no credentials in git. [Flutter signing guidance](https://docs.flutter.dev/deployment/android) |
+| Android permissions | Main app omits INTERNET; merged release manifest gains it from Sentry | App-owned declaration, merged permission review, location/notification denial and manual-location tests |
+| Android target | Observed merged target 36 / minimum 24 on installed SDK. Published requirements currently call for API 36 for new mobile apps/updates | Recheck against intended submission date and a successfully built release manifest. This audit does not certify all Play requirements. [Google Play target requirements](https://support.google.com/googleplay/android-developer/answer/11926878) |
+| Apple buildability | Unsigned device release fails in Sentry Swift | Supported native dependency set and successful unsigned build, simulator/device behavior and signed archive/export later |
+| Apple toolchain | Installed Xcode 16.4; published upload requirement calls for Xcode 26+ with iOS 26 SDK | Access to compliant toolchain and reproducible archive logs. Deployment target and build SDK are different requirements. [Apple requirements](https://developer.apple.com/news/upcoming-requirements/) |
+| iOS signing/identity | Bundle ID `com.dryslots.drySlots`, no team recorded; Android `com.dryslots.dry_slots` | Owner confirms identifiers and any existing listings before changes; certificates, profiles and entitlements validated in secure release environment |
+| Background/links/widgets | Dart services exist; missing iOS background setup, native widget targets and external link configuration | Platform-specific capability decisions and real-device tests; honest product copy for deferred capabilities |
+| Privacy and metadata | Policy HTML exists but hosted URL/contact not verified; declarations and store assets not prepared | Reviewed data flows, privacy manifests/labels/Data Safety, reachable policy/support, screenshots, age/content rating and accessible store copy |
+| Release approval | No approval requested or supplied for external release | Explicit owner approval for the exact reviewed build, metadata and target track immediately before upload/submission |
+
+No signed-build success, account readiness, beta distribution, commercial license approval or store acceptance is claimed.

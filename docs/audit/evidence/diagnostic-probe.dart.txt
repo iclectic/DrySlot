@@ -1,0 +1,67 @@
+import 'dart:io';
+import 'package:dio/dio.dart';
+import 'package:dry_slots/features/dry_slots/domain/dry_slot_calculator.dart';
+import 'package:dry_slots/features/weather_core/data/weather_repository_support.dart';
+import 'package:dry_slots/features/weather_core/data/open_meteo_weather_repository.dart';
+import 'package:dry_slots/features/weather_core/data/weather_local_store.dart';
+import 'package:dry_slots/features/weather_core/data/weather_provider_config.dart';
+import 'package:dry_slots/features/weather_core/domain/weather_models.dart';
+import 'package:dry_slots/features/weather_core/domain/weather_advisor.dart';
+import 'package:dry_slots/core/services/weather_notification_checker.dart';
+import 'package:dry_slots/core/services/local_notification_service.dart';
+import 'package:dry_slots/core/services/notification_preferences_controller.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+class Recorder extends LocalNotificationService {
+  final titles = <String>[];
+  @override
+  Future<void> showRainAlert({required String title, required String body}) async {
+    titles.add(title);
+  }
+}
+
+// Diagnostic observations of the audited version, NOT future regression expectations.
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  test('record current Phase 0 failure scenarios', () async {
+    final fixture = await const DemoWeatherRepository().fetchWeather(WeatherLocation.london);
+    final base = fixture.hourly.first.copyWith(time: DateTime(2026, 10, 29, 8), precipitationMm: 0, precipitationProbability: 5, windSpeedKph: 10);
+    const calc = DrySlotCalculator();
+    final wet = calc.findBestDryWindow([base.copyWith(precipitationMm: 2, precipitationProbability: 90)]);
+    print('ALL_WET: available=${wet.isAvailable}, headline=${wet.headline}');
+    final gap = calc.findBestDryWindow([base, base.copyWith(time: base.time.add(const Duration(hours: 4)))]);
+    print('GAP: 2 supported hours separated by 3 missing hours become ${gap.duration.inHours}h');
+    final past = calc.findBestDryWindow([base]);
+    print('PAST: start=${past.start}, accepts elapsed fixture without evaluation time');
+    print('CONFIDENCE: low precipitation probability produces ${past.confidenceLabel}');
+    final directory = await Directory.systemTemp.createTemp('dryslot-phase0-probe-');
+    Hive.init(directory.path);
+    final box = await Hive.openBox<String>('audit');
+    final store = WeatherLocalStore(box);
+    final offline = Dio();
+    offline.interceptors.add(InterceptorsWrapper(onRequest: (options, handler) => handler.reject(DioException(requestOptions: options, type: DioExceptionType.connectionError))));
+    final repository = OpenMeteoWeatherRepository(dio: offline, localStore: store);
+    final cold = await repository.fetchWeather(WeatherLocation.london);
+    print('COLD_OFFLINE: source=${cold.sourceLabel}, fallback=${cold.usingFallback}');
+    final old = fixture.copyWith(fetchedAt: DateTime(2020, 1, 1), sourceLabel: 'Archived fixture');
+    await store.cacheReport(old, provider: WeatherDataProvider.openMeteo);
+    final stale = await repository.fetchWeather(WeatherLocation.london);
+    print('STALE_CACHE: fetchedAt=${stale.fetchedAt}, source=${stale.sourceLabel}');
+    final partialDio = Dio();
+    partialDio.interceptors.add(InterceptorsWrapper(onRequest: (options, handler) => handler.resolve(Response(requestOptions: options, statusCode: 200, data: options.uri.host.contains('metoffice') ? '' : <String, dynamic>{}))));
+    final partial = await OpenMeteoWeatherRepository(dio: partialDio, localStore: store).fetchWeather(WeatherLocation.london);
+    print('EMPTY_PAYLOAD: source=${partial.sourceLabel}, fallback=${partial.usingFallback}, maxTempC=${partial.today.maxTempC}, rainChance=${partial.today.precipitationProbabilityMax}');
+    SharedPreferences.setMockInitialValues({'dry_slots.notifications.enabled.v1': false});
+    final prefs = await SharedPreferences.getInstance();
+    final recorder = Recorder();
+    final rainy = fixture.copyWith(current: fixture.current.copyWith(precipitationMm: 1), minutely: [MinuteForecast(time: fixture.fetchedAt, precipitationMm: 1, weatherCode: 61, windSpeedKph: 10, visibilityMeters: 10000, isDay: true)]);
+    final guidance = const WeatherAdvisor().build(rainy, commuteWindows: const []);
+    await WeatherNotificationChecker(notificationService: recorder, preferences: prefs, notificationPreferences: const NotificationPreferences(rainAlerts: true, commuteWarnings: false, dryWindowAlerts: false, quietHoursEnabled: false, quietStart: TimeOfDay(hour: 22, minute: 0), quietEnd: TimeOfDay(hour: 7, minute: 0))).evaluate(rainy, guidance);
+    print('MASTER_OFF: notification calls=${recorder.titles.length}');
+    offline.close(); partialDio.close(); await box.close();
+    print('Probe temporary data retained at ${directory.path}');
+  });
+}

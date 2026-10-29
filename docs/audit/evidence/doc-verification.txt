@@ -1,0 +1,4 @@
+Markdown documents: 10; local links checked: 41
+Baseline SHA-256 checks: 278 files; backlog IDs: DS-001..DS-031
+Scope: documentation/evidence only; excludes runtime and external URL validation
+PASS

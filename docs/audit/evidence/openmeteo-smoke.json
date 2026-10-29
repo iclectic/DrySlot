@@ -1,0 +1,24 @@
+{
+  "timezone": "Europe/London",
+  "utc_offset_seconds": 0,
+  "generationtime_ms": 0.8124113082885742,
+  "http_status": 200,
+  "current": {
+    "time": "2026-10-29T13:15"
+  },
+  "hourly": {
+    "count": 168,
+    "first": "2026-10-29T00:00",
+    "last": "2026-11-04T23:00"
+  },
+  "minutely_15": {
+    "count": 8,
+    "first": "2026-10-29T13:15",
+    "last": "2026-10-29T15:00"
+  },
+  "daily": {
+    "count": 7,
+    "first": "2026-10-29",
+    "last": "2026-11-04"
+  }
+}

@@ -1,0 +1,31 @@
+00:00 +0: loading <repo>/test/weather_advisor_test.dart
+00:00 +0: <repo>/test/weather_advisor_test.dart: builds a go-now next hour insight when the next hour is dry
+00:00 +1: <repo>/test/weather_advisor_test.dart: flags rougher conditions when rain is already in
+00:00 +2: <repo>/test/weather_advisor_test.dart: uses saved commute windows when scoring journeys
+00:00 +3: <repo>/test/weather_advisor_test.dart: generates outfit suggestions using practical plain-English labels
+00:00 +4: <repo>/test/weather_advisor_test.dart: returns all required activity scores out of ten
+00:00 +5: <repo>/test/weather_advisor_test.dart: surfaces official warnings in severe alerts and builds widget-ready cards
+00:00 +6: <repo>/test/weather_advisor_test.dart: adds supporting metrics only in detailed explanation mode
+00:00 +7: <repo>/test/weather_advisor_test.dart: builds a weekend planner from multi-day forecasts
+00:00 +8: <repo>/test/notification_checker_test.dart: WeatherNotificationChecker does not fire when all alert types are disabled
+00:00 +9: <repo>/test/notification_checker_test.dart: WeatherNotificationChecker does not fire during quiet hours
+00:00 +10: <repo>/test/notification_checker_test.dart: WeatherNotificationChecker fires rain alert when rain is imminent and rain alerts enabled
+00:00 +11: <repo>/test/notification_checker_test.dart: WeatherNotificationChecker respects cooldown and does not fire twice
+00:00 +12: <repo>/test/weather_provider_config_test.dart: defaults to Open-Meteo when no provider is configured
+00:00 +13: <repo>/test/weather_provider_config_test.dart: resolves WeatherAPI when its key is present
+00:00 +14: <repo>/test/weather_provider_config_test.dart: falls back to Open-Meteo when WeatherAPI is selected without a key
+00:00 +15: <repo>/test/weather_provider_config_test.dart: resolves OpenWeather when its key is present
+00:01 +16: <repo>/test/notification_preferences_test.dart: NotificationPreferences.isInQuietHours returns false when quiet hours are disabled
+00:01 +17: <repo>/test/notification_preferences_test.dart: NotificationPreferences.isInQuietHours detects quiet hours that do not wrap midnight
+00:01 +18: <repo>/test/notification_preferences_test.dart: NotificationPreferences.isInQuietHours copyWith preserves unmodified fields
+00:01 +19: <repo>/test/notification_preferences_test.dart: NotificationPreferences.isInQuietHours copyWith overrides quiet hours fields
+00:01 +20: <repo>/test/notification_preferences_test.dart: NotificationPreferences.isInQuietHours all alert types default to enabled
+00:01 +21: <repo>/test/notification_preferences_test.dart: NotificationPreferences.isInQuietHours individual alerts can be disabled
+00:01 +22: <repo>/test/display_settings_test.dart: DisplaySettingsState defaults to system theme, no large text, no high contrast, no colorblind
+00:01 +23: <repo>/test/display_settings_test.dart: DisplaySettingsState copyWith overrides specified fields only
+00:01 +24: <repo>/test/display_settings_test.dart: DisplaySettingsState copyWith preserves all fields when none specified
+00:01 +25: <repo>/test/weather_models_test.dart: weather report serializes cleanly for offline caching
+00:01 +26: <repo>/test/app_analytics_test.dart: does not record analytics events when disabled
+00:01 +27: <repo>/test/app_analytics_test.dart: records sanitized activity tap payloads when enabled
+00:01 +28: <repo>/test/app_analytics_test.dart: keeps notification engagement hooks available for future alerts
+00:02 +29: All tests passed!

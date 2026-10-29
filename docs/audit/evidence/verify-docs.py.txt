@@ -1,0 +1,44 @@
+from pathlib import Path
+import hashlib, re, subprocess, json
+root = Path.cwd()
+errors = []
+markdown = sorted(Path('docs').rglob('*.md'))
+link_count = 0
+for path in markdown:
+    content = path.read_text()
+    if not content.endswith('\n'):
+        errors.append(f'Missing final newline: {path}')
+    for number, line in enumerate(content.splitlines(), 1):
+        if line != line.rstrip():
+            errors.append(f'Trailing whitespace: {path}:{number}')
+    for target in re.findall(r'\[[^\]]+\]\(([^)]+)\)', content):
+        if target.startswith(('http://', 'https://', '#')):
+            continue
+        link_count += 1
+        relative = target.split('#', 1)[0]
+        if not (path.parent / relative).exists():
+            errors.append(f'Broken local link in {path}: {target}')
+backlog = Path('docs/audit/IMPLEMENTATION_BACKLOG.md').read_text()
+headings = re.findall(r'^([0-9]+)\. \*\*DS-([0-9]{3})', backlog, re.M)
+if headings != [(str(i), f'{i:03}') for i in range(1, 32)]:
+    errors.append('Backlog numbering differs from sequential DS-001..DS-031')
+for row in Path('docs/audit/evidence/repository-inventory.tsv').read_text().splitlines()[1:]:
+    name, size, lines, sha, scope = row.split('\t')
+    raw = Path(name).read_bytes()
+    if len(raw) != int(size) or hashlib.sha256(raw).hexdigest() != sha:
+        errors.append(f'Tracked baseline file changed: {name}')
+changed = subprocess.check_output(['git', 'diff', '--name-only']).decode().splitlines()
+if any(not name.startswith('docs/') for name in changed):
+    errors.append(f'Unexpected tracked changes: {changed}')
+for path in Path('docs/audit/evidence').glob('*.json'):
+    json.loads(path.read_text())
+for path in Path('docs').rglob('*'):
+    if path.is_file() and str(Path.home()) in path.read_text(errors='replace'):
+        errors.append(f'Unsanitized home path: {path}')
+print(f'Markdown documents: {len(markdown)}; local links checked: {link_count}')
+print('Baseline SHA-256 checks: 278 files; backlog IDs: DS-001..DS-031')
+print('Scope: documentation/evidence only; excludes runtime and external URL validation')
+for error in errors:
+    print('ERROR:', error)
+print('PASS' if not errors else 'FAIL')
+raise SystemExit(1 if errors else 0)

@@ -1,0 +1,153 @@
+Starting a Gradle Daemon, 1 busy Daemon could not be reused, use --status for details
+
+> Configure project :gradle
+WARNING: Unsupported Kotlin plugin version.
+The `embedded-kotlin` and `kotlin-dsl` plugins rely on features of Kotlin `2.0.21` that might work differently than in the requested version `2.2.20`.
+
+> Task :gradle:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :gradle:compileKotlin UP-TO-DATE
+> Task :gradle:compileJava NO-SOURCE
+> Task :gradle:compileGroovy NO-SOURCE
+> Task :gradle:pluginDescriptors UP-TO-DATE
+> Task :gradle:processResources UP-TO-DATE
+> Task :gradle:classes UP-TO-DATE
+> Task :gradle:jar UP-TO-DATE
+
+> Configure project :app
+Warning: Flutter support for your project's Gradle version (8.14.0) will soon be dropped. Please upgrade your Gradle version to a version of at least 9.1.0 soon.
+Alternatively, use the flag "--android-skip-build-dependency-validation" to bypass this check.
+
+Potential fix: Your project's gradle version is typically defined in the gradle wrapper file. By default, this can be found at <repo>/android/gradle/wrapper/gradle-wrapper.properties.
+For more information, see https://docs.gradle.org/current/userguide/gradle_wrapper.html.
+
+Warning: Flutter support for your project's Android Gradle Plugin version (Android Gradle Plugin version 8.11.1) will soon be dropped. Please upgrade your Android Gradle Plugin version to a version of at least Android Gradle Plugin version 9.0.1 soon.
+Alternatively, use the flag "--android-skip-build-dependency-validation" to bypass this check.
+
+Potential fix: Your project's AGP version is typically defined in the plugins block of the `settings.gradle` file (<repo>/android/settings.gradle), by a plugin with the id of com.android.application.
+If you don't see a plugins block, your project was likely created with an older template version. In this case it is most likely defined in the top-level build.gradle file (<repo>/android/build.gradle) by the following line in the dependencies block of the buildscript: "classpath 'com.android.tools.build:gradle:<version>'".
+
+Warning: Flutter support for your project's Kotlin version (2.2.20) will soon be dropped. Please upgrade your Kotlin version to a version of at least 2.3.20 soon.
+Alternatively, use the flag "--android-skip-build-dependency-validation" to bypass this check.
+
+Potential fix: Your project's KGP version is typically defined in the plugins block of the `settings.gradle` file (<repo>/android/settings.gradle), by a plugin with the id of org.jetbrains.kotlin.android.
+If you don't see a plugins block, your project was likely created with an older template version, in which case it is most likely defined in the top-level build.gradle file (<repo>/android/build.gradle) by the ext.kotlin_version property.
+
+
+> Task :app:validateCompileSdkVersion
+> Task :app:preBuild
+> Task :app:preReleaseBuild
+> Task :app:generateReleaseResValues
+> Task :app:extractDeepLinksRelease
+> Task :flutter_local_notifications:preBuild UP-TO-DATE
+> Task :flutter_local_notifications:preReleaseBuild UP-TO-DATE
+> Task :flutter_local_notifications:generateReleaseResValues UP-TO-DATE
+> Task :flutter_local_notifications:extractDeepLinksRelease
+> Task :geocoding_android:preBuild UP-TO-DATE
+> Task :geocoding_android:preReleaseBuild UP-TO-DATE
+> Task :geocoding_android:generateReleaseResValues UP-TO-DATE
+> Task :geocoding_android:extractDeepLinksRelease
+> Task :geolocator_android:preBuild UP-TO-DATE
+> Task :geolocator_android:preReleaseBuild UP-TO-DATE
+> Task :geolocator_android:generateReleaseResValues UP-TO-DATE
+> Task :geolocator_android:extractDeepLinksRelease
+> Task :home_widget:preBuild UP-TO-DATE
+> Task :home_widget:preReleaseBuild UP-TO-DATE
+> Task :home_widget:generateReleaseResValues UP-TO-DATE
+> Task :home_widget:extractDeepLinksRelease
+> Task :package_info_plus:preBuild UP-TO-DATE
+> Task :package_info_plus:preReleaseBuild UP-TO-DATE
+> Task :package_info_plus:generateReleaseResValues UP-TO-DATE
+> Task :package_info_plus:extractDeepLinksRelease
+> Task :path_provider_android:preBuild UP-TO-DATE
+> Task :path_provider_android:preReleaseBuild UP-TO-DATE
+> Task :path_provider_android:generateReleaseResValues UP-TO-DATE
+> Task :path_provider_android:extractDeepLinksRelease
+> Task :permission_handler_android:preBuild UP-TO-DATE
+> Task :permission_handler_android:preReleaseBuild UP-TO-DATE
+> Task :permission_handler_android:generateReleaseResValues UP-TO-DATE
+> Task :permission_handler_android:extractDeepLinksRelease
+> Task :sentry_flutter:preBuild UP-TO-DATE
+> Task :sentry_flutter:preReleaseBuild UP-TO-DATE
+> Task :sentry_flutter:generateReleaseResValues UP-TO-DATE
+> Task :sentry_flutter:extractDeepLinksRelease
+> Task :share_plus:preBuild UP-TO-DATE
+> Task :share_plus:preReleaseBuild UP-TO-DATE
+> Task :share_plus:generateReleaseResValues UP-TO-DATE
+> Task :share_plus:extractDeepLinksRelease
+> Task :shared_preferences_android:preBuild UP-TO-DATE
+> Task :shared_preferences_android:preReleaseBuild UP-TO-DATE
+> Task :shared_preferences_android:generateReleaseResValues UP-TO-DATE
+> Task :shared_preferences_android:extractDeepLinksRelease
+
+> Task :geolocator_android:processReleaseManifest
+package="com.baseflow.geolocator" found in source AndroidManifest.xml: <user>/.pub-cache/hosted/pub.dev/geolocator_android-5.0.2/android/src/main/AndroidManifest.xml.
+Setting the namespace via the package attribute in the source AndroidManifest.xml is no longer supported, and the value is ignored.
+Recommendation: remove package="com.baseflow.geolocator" from the source AndroidManifest.xml: <user>/.pub-cache/hosted/pub.dev/geolocator_android-5.0.2/android/src/main/AndroidManifest.xml.
+
+> Task :path_provider_android:processReleaseManifest
+package="io.flutter.plugins.pathprovider" found in source AndroidManifest.xml: <user>/.pub-cache/hosted/pub.dev/path_provider_android-2.2.22/android/src/main/AndroidManifest.xml.
+Setting the namespace via the package attribute in the source AndroidManifest.xml is no longer supported, and the value is ignored.
+Recommendation: remove package="io.flutter.plugins.pathprovider" from the source AndroidManifest.xml: <user>/.pub-cache/hosted/pub.dev/path_provider_android-2.2.22/android/src/main/AndroidManifest.xml.
+
+> Task :home_widget:processReleaseManifest
+package="es.antonborri.home_widget" found in source AndroidManifest.xml: <user>/.pub-cache/hosted/pub.dev/home_widget-0.7.0+1/android/src/main/AndroidManifest.xml.
+Setting the namespace via the package attribute in the source AndroidManifest.xml is no longer supported, and the value is ignored.
+Recommendation: remove package="es.antonborri.home_widget" from the source AndroidManifest.xml: <user>/.pub-cache/hosted/pub.dev/home_widget-0.7.0+1/android/src/main/AndroidManifest.xml.
+
+> Task :flutter_local_notifications:processReleaseManifest
+package="com.dexterous.flutterlocalnotifications" found in source AndroidManifest.xml: <user>/.pub-cache/hosted/pub.dev/flutter_local_notifications-18.0.1/android/src/main/AndroidManifest.xml.
+Setting the namespace via the package attribute in the source AndroidManifest.xml is no longer supported, and the value is ignored.
+Recommendation: remove package="com.dexterous.flutterlocalnotifications" from the source AndroidManifest.xml: <user>/.pub-cache/hosted/pub.dev/flutter_local_notifications-18.0.1/android/src/main/AndroidManifest.xml.
+
+> Task :geocoding_android:processReleaseManifest
+
+> Task :permission_handler_android:processReleaseManifest
+package="com.baseflow.permissionhandler" found in source AndroidManifest.xml: <user>/.pub-cache/hosted/pub.dev/permission_handler_android-13.0.1/android/src/main/AndroidManifest.xml.
+Setting the namespace via the package attribute in the source AndroidManifest.xml is no longer supported, and the value is ignored.
+Recommendation: remove package="com.baseflow.permissionhandler" from the source AndroidManifest.xml: <user>/.pub-cache/hosted/pub.dev/permission_handler_android-13.0.1/android/src/main/AndroidManifest.xml.
+
+> Task :package_info_plus:processReleaseManifest
+package="dev.fluttercommunity.plus.packageinfo" found in source AndroidManifest.xml: <user>/.pub-cache/hosted/pub.dev/package_info_plus-8.3.1/android/src/main/AndroidManifest.xml.
+Setting the namespace via the package attribute in the source AndroidManifest.xml is no longer supported, and the value is ignored.
+Recommendation: remove package="dev.fluttercommunity.plus.packageinfo" from the source AndroidManifest.xml: <user>/.pub-cache/hosted/pub.dev/package_info_plus-8.3.1/android/src/main/AndroidManifest.xml.
+
+> Task :share_plus:processReleaseManifest
+package="dev.fluttercommunity.plus.share" found in source AndroidManifest.xml: <user>/.pub-cache/hosted/pub.dev/share_plus-10.1.4/android/src/main/AndroidManifest.xml.
+Setting the namespace via the package attribute in the source AndroidManifest.xml is no longer supported, and the value is ignored.
+Recommendation: remove package="dev.fluttercommunity.plus.share" from the source AndroidManifest.xml: <user>/.pub-cache/hosted/pub.dev/share_plus-10.1.4/android/src/main/AndroidManifest.xml.
+
+> Task :sentry_flutter:processReleaseManifest
+package="io.sentry.flutter" found in source AndroidManifest.xml: <user>/.pub-cache/hosted/pub.dev/sentry_flutter-8.14.2/android/src/main/AndroidManifest.xml.
+Setting the namespace via the package attribute in the source AndroidManifest.xml is no longer supported, and the value is ignored.
+Recommendation: remove package="io.sentry.flutter" from the source AndroidManifest.xml: <user>/.pub-cache/hosted/pub.dev/sentry_flutter-8.14.2/android/src/main/AndroidManifest.xml.
+<user>/.pub-cache/hosted/pub.dev/sentry_flutter-8.14.2/android/src/main/AndroidManifest.xml:5:9-9:35 Warning:
+	provider#io.sentry.android.core.SentryInitProvider was tagged at AndroidManifest.xml:5 to remove other declarations but no other declaration present
+
+> Task :workmanager:preBuild UP-TO-DATE
+> Task :workmanager:preReleaseBuild UP-TO-DATE
+> Task :workmanager:generateReleaseResValues UP-TO-DATE
+
+> Task :shared_preferences_android:processReleaseManifest
+package="io.flutter.plugins.sharedpreferences" found in source AndroidManifest.xml: <user>/.pub-cache/hosted/pub.dev/shared_preferences_android-2.4.21/android/src/main/AndroidManifest.xml.
+Setting the namespace via the package attribute in the source AndroidManifest.xml is no longer supported, and the value is ignored.
+Recommendation: remove package="io.flutter.plugins.sharedpreferences" from the source AndroidManifest.xml: <user>/.pub-cache/hosted/pub.dev/shared_preferences_android-2.4.21/android/src/main/AndroidManifest.xml.
+
+> Task :workmanager:extractDeepLinksRelease
+
+> Task :workmanager:processReleaseManifest
+package="dev.fluttercommunity.workmanager" found in source AndroidManifest.xml: <user>/.pub-cache/hosted/pub.dev/workmanager-0.5.2/android/src/main/AndroidManifest.xml.
+Setting the namespace via the package attribute in the source AndroidManifest.xml is no longer supported, and the value is ignored.
+Recommendation: remove package="dev.fluttercommunity.workmanager" from the source AndroidManifest.xml: <user>/.pub-cache/hosted/pub.dev/workmanager-0.5.2/android/src/main/AndroidManifest.xml.
+
+> Task :app:processReleaseMainManifest
+
+[Incubating] Problems report is available at: file://<repo>/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.14/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 14s
+41 actionable tasks: 26 executed, 15 up-to-date
